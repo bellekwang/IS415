@@ -4,5 +4,11 @@
   },
   "about.qmd": {
     "about.html": "a4f6eddd"
+  },
+  "handsonex.qmd": {
+    "handsonex.html": "5d5b72e7"
+  },
+  "ice.qmd": {
+    "ice.html": "9c7b24a6"
   }
 }
