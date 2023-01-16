@@ -5,6 +5,11 @@ website:
   title: "IS415"
   navbar:
     left:
+      - href: handsonex.qmd
+        text: Hands-on Exercise
+      - href: ice.qmd
+        text: In-class Exerise
+    right: 
       - href: index.qmd
         text: Home
       - about.qmd
