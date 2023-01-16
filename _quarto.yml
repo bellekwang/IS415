@@ -5,10 +5,14 @@ website:
   title: "IS415"
   navbar:
     left:
-      - href: handsonex.qmd
-        text: Hands-on Exercise
-      - href: ice.qmd
-        text: In-class Exerise
+      - text: Hands-on Exercises
+        menu: 
+        - href: handsonex1.qmd
+          text: Hands-on Exercise 1
+      - text: In-class Exercises
+        menu: 
+          - href: inclass_ex/ICE2/ice2.qmd
+            text: In-class Exercise 2
     right: 
       - href: index.qmd
         text: Home
@@ -16,7 +20,7 @@ website:
 
 format:
   html:
-    theme: cosmo
+    theme: minty
     css: styles.css
     toc: true
 

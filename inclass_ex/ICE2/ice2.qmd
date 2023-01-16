@@ -1,0 +1,54 @@
+---
+title: "In-Class Exercise 2: Geospatial Data Wrangling"
+date: "r Sys.Date()"
+---
+
+# In-Class Exercise 2
+
+## Creating Simple Features
+
+### Aspatial Data
+
+```{r}
+pacman::p_load(sf, tidyverse, funModeling)
+```
+
+Importing WPdx+ data set
+
+```{r}
+wpdx <- read_csv("data/wpdx.csv")
+```
+
+Creating Feature Data Frame for WPDX
+
+```{r}
+wpdx_sf <- st_as_sf(wpdx,
+                    coords = c("lon_deg", "lat_deg"),
+                    crs=4326) %>%
+  st_transform(crs=26392)
+```
+
+### Geospatial Data
+
+```{r}
+admin_bound = st_read(dsn="data/NGA_cnty_admin2", layer = "nga_polnda_adm2_1m_salb")
+```
+
+Convert EPSG code to Nigeria's
+
+```{r}
+admin_bound26392 <- st_transform(admin_bound, 26392)
+```
+
+## LGA Level
+
+```{r}
+wpdx_sf %>%
+  group_by(water_source_clean) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n))
+```
+
+## Combining Geospatial and Aspatial Data Frames into Simple Feature Data Frame
+
+## Distribution of Water Points
