@@ -1,6 +1,14 @@
 ---
 title: "In-Class Exercise 2: Geospatial Data Wrangling"
-date: "r Sys.Date()"
+date: "16 Jan 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
 ---
 
 # In-Class Exercise 2
@@ -13,31 +21,48 @@ date: "r Sys.Date()"
 pacman::p_load(sf, tidyverse, funModeling)
 ```
 
-Importing WPdx+ data set
+Importing WPdx+ (Nigeria) data set
 
 ```{r}
-wpdx <- read_csv("data/wpdx.csv")
+wp_nga <- read_csv("data/aspatial/wpdx.csv")
 ```
 
 Creating Feature Data Frame for WPDX
 
 ```{r}
-wpdx_sf <- st_as_sf(wpdx,
-                    coords = c("lon_deg", "lat_deg"),
-                    crs=4326) %>%
-  st_transform(crs=26392)
+wp_nga$Geometry = st_as_sfc(wp_nga$`New Georeferenced Column`)
+```
+
+```{r}
+wp_nga
+```
+
+```{r}
+wp_sf <- st_sf(wp_nga, crs = 4326)
+wp_sf
 ```
 
 ### Geospatial Data
 
+Both sets of geospatial data are imported with the correct CRS of 26392.
+
 ```{r}
-admin_bound = st_read(dsn="data/NGA_cnty_admin2", layer = "nga_polnda_adm2_1m_salb")
+geoNGA = st_read(dsn="data/geospatial/geoboundaries_nga", 
+                 layer = "geoBoundaries-NGA-ADM2") %>%
+  st_transform(crs = 26392)
 ```
 
-Convert EPSG code to Nigeria's
+```{r}
+NGA <- st_read("data/geospatial/NGA_cnty_admin2",
+               layer = "nga_polbndl_adm2_1m_salb") %>%
+  st_transform(crs = 26392)
+```
+
+## Geospatial Data Cleaning
 
 ```{r}
-admin_bound26392 <- st_transform(admin_bound, 26392)
+NGA <- NGA %>%
+  select(c(3:4, 8:9))
 ```
 
 ## LGA Level
