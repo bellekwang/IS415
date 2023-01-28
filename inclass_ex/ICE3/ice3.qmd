@@ -1,0 +1,49 @@
+---
+title: "In-class Exercise 3: Analytical Mappping"
+date: "25 Jan 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+```{r}
+pacman::p_load(sf, tidyverse, tmap)
+```
+
+```{r}
+NGA_wp <- read_rds("data/rds/NGA_wp.rds")
+```
+
+```{r}
+p1 <- tm_shape(NGA_wp) +
+  tm_fill(
+    "wp_functional", n=10, style='equal', palette='Blues'
+  ) +
+  tm_borders(
+    lwd=0.1,
+    alpha=1
+  ) +
+  tm_layout(
+    main.title="Distribution of funtional water",
+    legend.outside=FALSE
+  )
+```
+
+```{r}
+
+```
+
+```{r}
+tmap_arrange(p2, p1, nrow=1)
+```
+
+```{r}
+NGA_wp <- NGA_wp %>%
+  mutate(pct_functional = wpfunctional/total_wp) %>%
+  mutate(pct_nonfunctional = wp_nonfunctional/total_wp)
+```
