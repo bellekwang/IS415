@@ -30,7 +30,7 @@ wp_nga <- read_csv("data/aspatial/wpdx.csv")
 Creating Feature Data Frame for WPDX
 
 ```{r}
-wp_nga$Geometry = st_as_sfc(wp_nga$`New Georeferenced Column`)
+#wp_nga$Geometry = st_as_sfc(wp_nga$`New Georeferenced Column`)
 ```
 
 ```{r}
@@ -38,8 +38,8 @@ wp_nga
 ```
 
 ```{r}
-wp_sf <- st_sf(wp_nga, crs = 4326)
-wp_sf
+#wp_sf <- st_sf(wp_nga, crs = 4326)
+#wp_sf
 ```
 
 ### Geospatial Data
@@ -61,17 +61,17 @@ NGA <- st_read("data/geospatial/NGA_cnty_admin2",
 ## Geospatial Data Cleaning
 
 ```{r}
-NGA <- NGA %>%
-  select(c(3:4, 8:9))
+#NGA <- NGA %>%
+  #select(c(3:4, 8:9))
 ```
 
 ## LGA Level
 
 ```{r}
-wpdx_sf %>%
-  group_by(water_source_clean) %>%
-  summarise(n = n()) %>%
-  mutate(freq = n / sum(n))
+#wpdx_sf %>%
+ # group_by(water_source_clean) %>%
+  #summarise(n = n()) %>%
+  #mutate(freq = n / sum(n))
 ```
 
 ## Combining Geospatial and Aspatial Data Frames into Simple Feature Data Frame

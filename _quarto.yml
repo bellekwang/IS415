@@ -8,9 +8,11 @@ website:
       - text: Hands-on Exercises
         menu: 
         - href: handsonex1.qmd
-          text: Hands-on Exercise 1
+          text: Exercise 1
         - href: handson_ex/HE3/HE3.qmd
-          text: Hands-on Excercise 3
+          text: Excercise 3
+        - href: handson_ex/HE4/HE4.qmd
+          text: Exercise 4
       - text: In-class Exercises
         menu: 
           - href: inclass_ex/ICE2/ice2.qmd
