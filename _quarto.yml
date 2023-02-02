@@ -7,7 +7,7 @@ website:
     left:
       - text: Hands-on Exercises
         menu: 
-        - href: handsonex1.qmd
+        - href: handson_ex/HE1/HE1.qmd
           text: Exercise 1
         - href: handson_ex/HE3/HE3.qmd
           text: Excercise 3
