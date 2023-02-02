@@ -164,8 +164,7 @@ glimpse(listings_sf)
 
 ## Geoprocessing
 
-> **Scenario:**
-> The authority is planning to upgrade the exiting cycling path. To do so, they need to acquire 5 metres of reserved land on the both sides of the current cycling path. You are tasked to determine the extend of the land need to be acquired and their total area.
+> **Scenario:** The authority is planning to upgrade the exiting cycling path. To do so, they need to acquire 5 metres of reserved land on the both sides of the current cycling path. You are tasked to determine the extend of the land need to be acquired and their total area.
 
 1.  Compute 5-meter buffers around cycling paths
 2.  Calculate the are of buffers
