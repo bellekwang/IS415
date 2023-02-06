@@ -16,17 +16,27 @@ website:
       - text: In-class Exercises
         menu: 
           - href: inclass_ex/ICE2/ice2.qmd
-            text: In-class Exercise 2
+            text: Exercise 2
           - href: inclass_ex/ICE3/ice3.qmd
-            text: In-class Exercise 3
+            text: Exercise 3
+          - href: handson_ex/HE4/HE4.qmd
+            text: Excercise 4
+          - href: inclass_ex/ICE5/ICE5.qmd
+            text: Exercise 5
+      - text: Take-Home Exercises
+        menu: 
+          - href: take_home_ex/THE1/THE1.qmd
+            text: Exercise 1
     right: 
       - href: index.qmd
         text: Home
-      - about.qmd
+      - href: https://github.com/bellekwang/IS415
+        text: Github
 
 format:
   html:
-    theme: minty
+    theme: litera
+    max-width: 80%
     css: styles.css
     toc: true
 

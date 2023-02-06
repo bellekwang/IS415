@@ -1,0 +1,191 @@
+---
+title: "In-class Exercise 5"
+subtitle: ""
+date: "6 Feb 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+## Lesson Notes
+
+### Colocated
+
+-   Colocated: A is surrounded by several point events B within specified distance.
+
+-   Isolated: A is surrounded by several point events A within specified distance (more A\>B)
+
+### Colocation Quotient
+
+1.  Base formula
+2.  Weighted average
+3.  Kernel function
+    -   bi-square kernel will be 0 if value is negative
+
+### Complete Spatial Randomness Test
+
+Algorithm calculates the p-value during permutations.
+
+### Results Interpretation
+
+-   quotient score for each input of interest
+
+    -   \>1: more like to have category B (colocated)
+
+    -   \<1: less likely to have category B (isolated)
+
+    -   =1: proportion of categories within neighbourhood is a good representation of the entire area (but rare)
+
+    -   cannot go less than 0
+
+-   p-value: significance(?)
+
+# Exercise
+
+## Setting Up
+
+### Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, tidyverse, tmap, sfdep)
+```
+
+### Importing Data
+
+-   Taiwan CRS: 3829
+
+```{r}
+studyArea <- st_read(
+  dsn = "data",
+  layer = "study_area"
+) %>%
+  st_transform(crs = 3829)
+```
+
+```{r}
+stores <- st_read(
+  dsn = "data",
+  layer = "stores"
+) %>%
+  st_transform(crs = 3829)
+```
+
+-   studyArea is a *POLYGON* sf dataframe with 7 features
+
+-   stores is a *POINT* sf dataframe with 1409 features
+
+## Data Visualisation
+
+```{r}
+tmap_mode("view")
+tm_shape(studyArea) + #plot polygon before point/line
+  tm_polygons() +
+tm_shape(stores) +
+  tm_dots(
+    col = "Name",
+    size = 0.01,
+    border.col = "black",
+    border.lwd = 0.5
+  ) +
+  tm_view(set.zoom.limits = c(12,16))
+```
+
+## Local Colocation Quotient (LCLQ)
+
+`local_colocation(A, B, nb, wt, nsim)`
+
+-   nb: neighbour list
+
+-   wt: kernel to use
+
+-   nsim: number of simulations run
+
+### Calculate Neighbour List
+
+Search for the 6 nearest neightbour
+
+-   includes self: total of 7 points, will not get a LCLQ of 1
+
+```{r}
+nb <- include_self(st_knn(st_geometry(stores), 6))
+```
+
+```{r}
+glimpse(nb)
+```
+
+-   nb: list of 1409 x 7 points (1 self point + 6 neighbour points)
+
+### Calculate Weight Matrix
+
+```{r}
+wt <- st_kernel_weights(
+  nb,
+  stores,
+  "gaussian",
+  adaptive = TRUE
+)
+```
+
+-   Convert all nb into a weight matrix: list of 1409 x distance weight
+
+-   Nearer the target, higher the weight
+
+### Assigning A and B
+
+```{r}
+FamilyMart <- stores %>%
+  filter(Name == "Family Mart")
+A <- FamilyMart$Name
+
+SevenEleven <- stores %>%
+  filter(Name == "7-Eleven")
+B <- SevenEleven$Name
+```
+
+### Calculate LCLQ
+
+```{r}
+LCLQ <- local_colocation(A, B, nb, wt, 49)
+```
+
+-   A: target, B: neighbour
+
+### Visualising LCLQ
+
+Combine the LCLQ back to the geometry.
+
+-   cannot do relational joint because LCLQ has no unique identifier (left/right join)
+
+-   `cbind` only works if you don't sort LCLQ: sequence needs to remain the same
+
+-   LHS: needs to be the geometry (inherit LHS)
+
+```{r}
+LCLQ_stores <- cbind(stores, LCLQ)
+```
+
+Plot out LCLQ
+
+```{r}
+tmap_mode("view")
+tm_shape(studyArea) + #plot polygon before point/line
+  tm_polygons() +
+tm_shape(LCLQ_stores) +
+  tm_dots(
+    col = "X7.Eleven",
+    size = 0.01,
+    border.col = "black",
+    border.lwd = 0.5
+  ) +
+  tm_view(set.zoom.limits = c(12,16))
+```
+
+-   can see which points are colocated/isolated
+
+-   p-values = 0.999, colocated but not significant
