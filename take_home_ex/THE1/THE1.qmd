@@ -16,7 +16,7 @@ editor: visual
 
 ## Problem Statement
 
-Understand the spatial analysis of functional and non-functional water points across Osun state in Nigeria.
+Understanding the spatial analysis of functional and non-functional water points across Osun state in Nigeria.
 
 ## Data
 
