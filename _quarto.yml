@@ -19,8 +19,6 @@ website:
             text: Exercise 2
           - href: inclass_ex/ICE3/ice3.qmd
             text: Exercise 3
-          - href: handson_ex/HE4/HE4.qmd
-            text: Excercise 4
           - href: inclass_ex/ICE5/ICE5.qmd
             text: Exercise 5
       - text: Take-Home Exercises

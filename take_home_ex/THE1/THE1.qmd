@@ -1,0 +1,690 @@
+---
+title: "Take Home Exercise 1"
+subtitle: "Application of Spatial Point Patterns Analysis to discover the geographical distribution of functional and non-function water points in Osub State, Nigeria"
+date: "4 Feb 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Context
+
+## Problem Statement
+
+Understand the spatial analysis of functional and non-functional water points across Osun state in Nigeria.
+
+## Data
+
+| Data                                      | Format (Type)       | Description                                   | Source                                                                                                                          |
+|------------------|------------------|------------------|-------------------|
+| WPdx+                                     | CSV (Aspatial)      | Water Points with details on how clean it is. | [Water Point Data Exchange](https://data.waterpointdata.org/dataset/Water-Point-Data-Exchange-Plus-WPdx-/eqje-vguj/data) (2020) |
+| Nigeria Administrative Boundaries Level 2 | Shapefile (Spatial) | Nigeria political administrative boundaries   | [OCHA Service](https://data.humdata.org/dataset/nigeria-admin-level-0-1-and-2-administrative-boundaries) (2016)                 |
+| Nigeria Geoboundaries                     | Shapefile (Spatial) | Nigeria political administrative boundaries   | [geoBoundaries](https://www.geoboundaries.org/) (2020)                                                                          |
+
+# Setting Up
+
+## Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, tidyverse, funModeling, tmap, sfdep, spatstat, maptools, raster, tidyr, dplyr, sp)
+```
+
+## WPdx+ Dataset
+
+### Import Data
+
+From the aspatial data folder, import the WPdx csv file. Using the `filter()` function, get the Osun State data.
+
+```{r}
+wp_nga_osun <- read_csv("data/aspatial/WPdx.csv") %>%
+  filter(`#adm1` == "Osun")
+```
+
+```{r}
+head(wp_nga_osun, n = 5)
+```
+
+### Creating sf Dataframe and Projection
+
+1.  Convert ***wp_nga_osun*** into sf data.frame using `st_as_sfc()`
+
+```{r}
+wp_nga_osun$Geometry = st_as_sfc(wp_nga_osun$`New Georeferenced Column`)
+head(wp_nga_osun)
+```
+
+2.  Convert tibble data.frame into sf object using `st_sf()`, including the correct Nigeria coordinate system, `26392`.
+
+```{r}
+wp_sf <- st_sf(wp_nga_osun, crs = 4326) %>%
+  st_transform(crs = 26392)
+head(wp_sf)
+```
+
+3.  Check that the EPSG is correct
+
+```{r}
+st_crs(wp_sf)
+```
+
+4.  Use st_geometry() to understand the sf dataframe
+
+```{r}
+st_geometry(wp_sf)
+```
+
+-   `wp_sf` contains 5059 points
+
+## Nigeria Administrative Boundaries Level 2
+
+### Import Data
+
+To import a shapefile, use `st_read()` where `dsn` is the targeted directory and `layer` is the name of the files.
+
+```{r}
+nga <- st_read(
+  dsn = "data/geospatial",
+  layer = "nga_polnda_adm2_1m_salb"
+)
+```
+
+-   `nga` is a MULTIPOLYGON sf dataframe with 1685 features is imported.
+
+### Projection
+
+The geodetic CRS is wrong. Using st_transform(), change the CRS from WGS84 to Minna / Nigeria Mid Belt (26392)
+
+```{r}
+nga <- st_transform(nga, crs = 26392)
+st_crs(nga)
+```
+
+To better understand the data, use `st_geometry()` on the sf dataframe:
+
+```{r}
+st_geometry(nga)
+```
+
+## geoBoundaries
+
+### Import Data
+
+Similarly to the previous dataset, this dataset is in the form of a shapefile. `geoNga` is a MULTIPOLYGON sf data frame with 774 features.
+
+```{r}
+geoNga <- st_read(
+  dsn = "data/geospatial",
+  layer = "geoBoundaries-NGA-ADM2"
+)
+```
+
+### Projection
+
+Similarly, use st_transform() to change to the correct CRS.
+
+```{r}
+geoNga <- st_transform(geoNga, crs = 26392)
+st_crs(geoNga)
+```
+
+To understand this dataset better:
+
+```{r}
+st_geometry(geoNga)
+```
+
+# Data Wrangling
+
+## geoNga
+
+There are 30 LGAs in Osun state:
+
+Aiyedaade, Aiyedire, Atakunmosa East, Atakunmosa West, Boluwaduro, Boripe, Ede North, Ede South, Egbedore, Ejigbo, Ife Central, Ife East, Ife North, Ife South, Ifedayo, Ifelodun, Ila, Ilesa East, Ilesa West, Irepodun, Irewole, Isokan, Iwo, Obokun, Odo Otin, Ola Oluwa, Olorunda, Oriade, Orolu, Osogbo
+
+(source: [Local Government Areas in Osun State](https://postcode.com.ng/local-government-areas-in-osun-state/) - Nigeria Postcode)
+
+```{r}
+geoNga_osun <- geoNga %>%
+  filter(
+    `shapeName` %in%
+      c(
+        "Aiyedaade", "Aiyedire", "Atakunmosa East", "Atakunmosa West", "Boluwaduro", "Boripe", "Ede North", "Ede South", "Egbedore", "Ejigbo", "Ife Central", "Ife East", "Ife North", "Ife South", "Ifedayo", "Ifelodun", "Ila", "Ilesa East", "Ilesa West", "Irepodun", "Irewole", "Isokan", "Iwo", "Obokun", "Odo Otin", "Ola Oluwa", "Olorunda", "Oriade", "Orolu", "Osogbo"
+      )
+  )
+```
+
+```{r}
+st_geometry(geoNga_osun)
+```
+
+There are only 25 features in geoNga_osun data frame, there are 5 missing areas not accounted for.
+
+## nga
+
+For the nga data frame, Osun state areas can easily be filtered out through the column "ADM1_NAME".
+
+```{r}
+nga_osun <- nga %>%
+  filter(`ADM1_NAME` == "Osun")
+```
+
+```{r}
+st_geometry(nga_osun)
+```
+
+`nga_osun` has all the 30 LGAs thus I will be using this data frame instead of the one from geoBoundaries.
+
+## wp_sf
+
+### Understanding the Water Point Categories
+
+First, use `unique()` to understand the categories under the "#status_clean" column.
+
+```{r}
+unique(wp_sf$`#status_clean`)
+```
+
+Check for any NA values in the "#status_clean" column
+
+```{r}
+sum(is.na(wp_sf$`#status_clean`))
+```
+
+### Formatting the Water Point Categories
+
+Simplify the categories into 2 main categories: Functional and Non-functional:
+
+-   Functional: "Functional", "Functional, needs repair", "Functional, not in use", "Functional but not in use"
+
+-   Non-functional: "Non-Functional", "Non-Functional, dry", "Abandoned/Decommisioned"
+
+Use the `filter()` function to extract functional and non-functional water points.
+
+```{r}
+wp_functional <- wp_sf %>%
+  filter(
+    `#status_clean` %in%
+      c(
+        "Functional",
+        "Functional, needs repair",
+        "Functional, not in use",
+        "Functional but not in use"
+      )
+  )
+```
+
+```{r}
+wp_nonfunctional <- wp_sf %>%
+  filter(
+    `#status_clean` %in%
+      c(
+        "Non-Functional",
+        "Non-Functional, dry",
+        "Abandoned/Decommissioned"
+      )
+  )
+```
+
+## Conversion to Spatial Point/Polygon Data Frames
+
+To do the analysis in further sections, we need to first convert our data frames to the right form.
+
+First, convert the simple feature data frames into spatial points and polygon data frames.
+
+```{r}
+nga_osun_temp <- as_Spatial(nga_osun)
+wp_functional_temp <- as_Spatial(wp_functional)
+wp_nonfunctional_temp <- as_Spatial(wp_nonfunctional)
+```
+
+```{r}
+nga_osun_temp
+```
+
+```{r}
+wp_functional_temp
+```
+
+```{r}
+wp_nonfunctional_temp
+```
+
+## Conversion from Spatial Classes to Objects
+
+Next, we convert the data frames from spatial classes to objects using the `as()` function.
+
+```{r}
+nga_osun_sp <- as(nga_osun_temp, "SpatialPolygons")
+wp_functional_sp <- as(wp_functional_temp, "SpatialPoints")
+wp_nonfunctional_sp <- as(wp_nonfunctional_temp, "SpatialPoints")
+```
+
+```{r}
+nga_osun_sp
+```
+
+```{r}
+wp_functional_sp
+```
+
+```{r}
+wp_nonfunctional_sp
+```
+
+## Conversion from Spatial Object to ppp Format
+
+Using the spatstat package, convert both functional and non-functional water points to the ppp format.
+
+```{r}
+wp_functional_ppp <- as(wp_functional_sp, "ppp")
+wp_nonfunctional_ppp <- as(wp_nonfunctional_sp, "ppp")
+```
+
+```{r}
+summary(wp_functional_ppp)
+```
+
+```{r}
+summary(wp_nonfunctional_ppp)
+```
+
+## Jittering Any Duplicate Points
+
+```{r}
+any(duplicated(wp_functional_ppp))
+```
+
+```{r}
+any(duplicated(wp_nonfunctional_ppp))
+```
+
+Since there are no duplicate points, there is no need for jittering.
+
+## Creating owin Object
+
+Using the `nga_osun_sp`, create an owin object with the `as()` function.
+
+```{r}
+nga_osun_owin <- as(nga_osun_sp, "owin")
+```
+
+```{r}
+plot(nga_osun_owin)
+```
+
+## Combining Point Events Object and owin Object
+
+First, combine the functional water points with the owin object.
+
+```{r}
+wp_functional_nga_osun_ppp = wp_functional_ppp[nga_osun_owin]
+```
+
+```{r}
+plot(wp_functional_nga_osun_ppp)
+```
+
+Next, combine the non-functional water points with the owin object.
+
+```{r}
+wp_nonfunctional_nga_osun_ppp = wp_nonfunctional_ppp[nga_osun_owin]
+```
+
+```{r}
+plot(wp_nonfunctional_nga_osun_ppp)
+```
+
+Now that all the data has been prepared, we can move on to the analysis.
+
+# Exploratory Spatial Data Analysis (ESDA)
+
+## Kernel Density Maps of Functional and Non-functional Water Points
+
+I will first re-scale all the KDE values from meter to kilometer using the `rescale()` function.
+
+```{r}
+wp_functional_nga_osun_ppp.km <- rescale(wp_functional_nga_osun_ppp, 1000, "km")
+wp_nonfunctional_nga_osun_ppp.km <- rescale(wp_nonfunctional_nga_osun_ppp, 1000, "km")
+```
+
+### Comparing Algorithms
+
+I will then try out various algorithms to see which has the best output.
+
+```{r}
+par(mfrow = c(1,2))
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.diggle,
+    edge = TRUE,
+    kernel = "gaussian"
+  ), main = "Diggle, Gaussian")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.diggle,
+    edge = TRUE,
+    kernel = "epanechnikov"
+  ), main = "Diggle, Epanechnikov")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.diggle,
+    edge = TRUE,
+    kernel = "quartic"
+  ), main = "Diggle, Quartic")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.diggle,
+    edge = TRUE,
+    kernel = "disc"
+  ), main = "Diggle, disc")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.ppl,
+    edge = TRUE,
+    kernel = "gaussian"
+  ), main = "ppl, Gaussian")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.ppl,
+    edge = TRUE,
+    kernel = "epanechnikov"
+  ), main = "ppl, Epanechnikov")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.ppl,
+    edge = TRUE,
+    kernel = "quartic"
+  ), main = "ppl, Quartic")
+plot(density(
+    wp_functional_nga_osun_ppp.km,
+    sigma = bw.ppl,
+    edge = TRUE,
+    kernel = "disc"
+  ), main = "ppl, disc")
+```
+
+As seen from the maps above, using the bw.ppl sigma works significantly better than bw.diggle.
+
+```{r}
+bw.ppl(wp_functional_nga_osun_ppp.km)
+```
+
+I will use a fixed sigma of 0.6 from here onward.
+
+```{r}
+kde_wp_functional_nga_osun_bw <- density(
+  wp_functional_nga_osun_ppp.km,
+  sigma = 0.6,
+  edge = TRUE,
+  kernel = "quartic"
+)
+kde_wp_nonfunctional_nga_osun_bw <- density(
+  wp_nonfunctional_nga_osun_ppp.km,
+  sigma = 0.6,
+  edge = TRUE,
+  kernel = "quartic"
+)
+```
+
+### Functional Water Points KDE Map
+
+```{r}
+gridded_kde_wp_functional_nga_osun_bw <- as.SpatialGridDataFrame.im(kde_wp_functional_nga_osun_bw)
+spplot(gridded_kde_wp_functional_nga_osun_bw)
+```
+
+### Non-functional Water Points KDE Map
+
+```{r}
+gridded_kde_wp_nonfunctional_nga_osun_bw <- as.SpatialGridDataFrame.im(kde_wp_nonfunctional_nga_osun_bw)
+spplot(gridded_kde_wp_nonfunctional_nga_osun_bw)
+```
+
+## KDE Map on Openstreetmap
+
+First, the grid output needs to be converted into a raster layer for visualisation, using the `raster()` function.
+
+```{r}
+kde_wp_functional_nga_osun_bw_raster <- raster(kde_wp_functional_nga_osun_bw)
+kde_wp_nonfunctional_nga_osun_bw_raster <- raster(kde_wp_nonfunctional_nga_osun_bw)
+```
+
+Check if there is missing CRS
+
+```{r}
+kde_wp_functional_nga_osun_bw_raster
+```
+
+```{r}
+kde_wp_nonfunctional_nga_osun_bw_raster
+```
+
+Assign the projection systems into the raster layers using the `CRS()` function.
+
+```{r}
+projection(kde_wp_functional_nga_osun_bw_raster) <- CRS("+init=EPSG:26392")
+kde_wp_functional_nga_osun_bw_raster
+```
+
+```{r}
+projection(kde_wp_nonfunctional_nga_osun_bw_raster) <- CRS("+init=EPSG:26392")
+kde_wp_nonfunctional_nga_osun_bw_raster
+```
+
+### Functional Water Points
+
+```{r}
+tmap_mode("view")
+tm_shape(kde_wp_functional_nga_osun_bw_raster) +
+  tm_raster() +
+  tm_view(set.zoom.limits = c(18,20))
+```
+
+### Non-functional Water Points
+
+```{r}
+tmap_mode("view")
+tm_shape(kde_wp_nonfunctional_nga_osun_bw_raster) +
+  tm_raster() +
+  tm_view(set.zoom.limits = c(18,20))
+```
+
+## Conclusion
+
+### Spatial Patterns
+
+Both functional and non-functional water points are generally evenly spread out all over the Osun state.
+
+Based on the maps above, there are more dense spots for non-functional water points as compared to functional water points.
+
+Most of the denser spots for both functional and non-functional water points are located on the upper half of the Osun state.
+
+### Advantage of Kernel Density Map
+
+When plotting a point map, multiple points may overlap over each other especially when the map is zoomed out. If there are too many points all over the map, it will be difficult to tell which area has more points as compared to other areas.
+
+Whereas the Kernel Density map shows the density by colour and will not clutter up the map with points. It makes analysis of density significantly easier to identify.
+
+# Second-order Spatial Point Pattern Analysis
+
+## Test Hypothesis 1
+
+H0 = The distribution of functional water points are randomly distributed.
+
+H1 = The distribution of functional water points are not randomly distributed.
+
+Confidence Interval = 95%
+
+### Rationale for Tests
+
+I will be using 3 tests: Clark-Evans Test, G-function and L-function.
+
+1.  Clark-Evans Test
+2.  G-function: Understand how spaced apart the events are in a point pattern
+3.  L-function: Adjusted version of K-function, easier to distinguish the level of significance
+    -   NOTE: was not able to run L-function test, R studio hangs everytime I try to run it.
+
+### Nearest Neighbour Index (Clark-Evans Test)
+
+```{r}
+clarkevans.test(wp_functional_nga_osun_ppp,
+                correction="none",
+                clipregion="nga_osun_owin",
+                alternative=c("clustered"),
+                nsim=99)
+```
+
+-   Since p-value is 0.01 which is smaller than 0.05, the null hypothesis is rejected.
+
+-   Since the R-value is 0.428 (3 d.p.) \< 1, the pattern exhibits clustering
+
+Conclusion: Based on the Clark-Evans test, the distribution of functional water points are not randomly distributed.
+
+### G-Function
+
+-   `Gest(x)`: Estimates the nearest neighbour distance distribution function from a point pattern in a window of arbitrary shape
+
+```{r}
+G_F = Gest(wp_functional_nga_osun_ppp, correction = "border")
+plot(G_F, xlim = c(0, 500))
+```
+
+-   envelope(x): if p-value \< alpha-value (0.001), then null hypothesis is rejected
+
+```{r}
+G_F.csr <- envelope(wp_functional_nga_osun_ppp, Gest, nsim = 999)
+```
+
+```{r}
+plot(G_F.csr)
+```
+
+-   The observed line is above the envelopes, suggesting a clustered pattern.
+
+Conclusion: Based on the G function, there is clustering and the null hypothesis is rejected. The distribution of functional water points are not randomly distributed.
+
+## Test Hypothesis 2
+
+H0 = The distribution of non-functional water points are randomly distributed.
+
+H1 = The distribution of non-functional water points are not randomly distributed.
+
+Confidence Interval = 95%
+
+### Nearest Neighbour Index (Clark-Evans Test)
+
+```{r}
+clarkevans.test(wp_nonfunctional_nga_osun_ppp,
+                correction="none",
+                clipregion="nga_osun_owin",
+                alternative=c("clustered"),
+                nsim=99)
+```
+
+-   Since p-value is 0.01 which is smaller than 0.05, the null hypothesis is rejected.
+
+-   Since the R-value is 0.421 (3 d.p.) \< 1, the pattern exhibits clustering
+
+Conclusion: Based on the Clark-Evans test, the distribution of non-functional water points are not randomly distributed.
+
+### G-Function
+
+```{r}
+G_NF = Gest(wp_nonfunctional_nga_osun_ppp, correction = "border")
+plot(G_NF, xlim = c(0, 500))
+```
+
+```{r}
+G_NF.csr <- envelope(wp_nonfunctional_nga_osun_ppp, Gest, nsim = 999)
+```
+
+```{r}
+plot(G_NF.csr)
+```
+
+-   The observed line is above the envelopes, suggesting a clustered pattern.
+
+Conclusion: Based on the G function, there is clustering and the null hypothesis is rejected. The distribution of functional water points are not randomly distributed.
+
+## Overall Conclusion
+
+For both functional and non-functional water points, they exhibit patterns of clustering and are not randomly distributed.
+
+# Spatial Correlation Analysis
+
+## Test Hypothesis
+
+H0 = Spatial distribution of functional and non-functional water points are independent from each other.
+
+H1 = Spatial distribution of functional and non-functional water points are not independent from each other.
+
+Confidence Interval: 95%
+
+## Local Colocation Quotient
+
+### Calculate Neighbour List
+
+Search for the 6 nearest neighbour whilst including self, such that each list has 7 neighbours generated.
+
+```{r}
+nb <- include_self(st_knn(st_geometry(wp_sf), 6))
+```
+
+```{r}
+head(nb, n = 5)
+```
+
+### Calculate Weight Matrix
+
+Using the `st_kernel_weights()` function, convert all nb into a weight matrix.
+
+```{r}
+wt <- st_kernel_weights(
+  nb, wp_sf, "gaussian", adaptive = TRUE
+)
+```
+
+### Calculate LCLQ
+
+```{r}
+LCLQ <- local_colocation(
+  wp_functional$`#status_clean`,
+  wp_nonfunctional$`#status_clean`,
+  nb, wt, 49
+)
+```
+
+## Visualising LCLQ
+
+```{r}
+LCLQ_wp <- cbind(wp_sf, LCLQ)
+```
+
+```{r}
+tmap_mode("view")
+tm_shape(nga_osun) +
+  tm_polygons() +
+tm_shape(LCLQ_wp) +
+  tm_dots(
+    col = "Non.Functional",
+    size = 0.01,
+    border.col = "black",
+    border.lwd = 0.5
+  ) 
+```
+
+## Conclusion
+
+The majority of the non-functional water points have missing LCLQ values (assumed to be 0), representing that the majority of functional water points are unlikely to have non-functional water points within the neighbourhood.
+
+There are a few non-functional water points with LCLQ values of 0.6 to 0.9, indicating that there are a few functional water points that has a chance of having non-functional water points within the neighbourhood.
+
+There are multiple non-functional water points with LCLQ values of 1 to 1.1, indicating that:
+
+1.  there are multiple areas with a good representation of functional and non-functional water points throughout the neighbourhood.
+2.  there are multiple functional water points that are more likely to have non-functional water points within the neighbourhood.
