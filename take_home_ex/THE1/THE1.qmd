@@ -21,7 +21,7 @@ Understanding the geographical distribution of functional and non-functional wat
 ## Data
 
 | Data                                      | Format (Type)       | Description                                   | Source                                                                                                                          |
-|------------------|------------------|------------------|-------------------|
+|-------------------------------------------|---------------------|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | WPdx+                                     | CSV (Aspatial)      | Water Points with details on how clean it is. | [Water Point Data Exchange](https://data.waterpointdata.org/dataset/Water-Point-Data-Exchange-Plus-WPdx-/eqje-vguj/data) (2020) |
 | Nigeria Administrative Boundaries Level 2 | Shapefile (Spatial) | Nigeria political administrative boundaries   | [OCHA Service](https://data.humdata.org/dataset/nigeria-admin-level-0-1-and-2-administrative-boundaries) (2016)                 |
 | Nigeria Geoboundaries                     | Shapefile (Spatial) | Nigeria political administrative boundaries   | [geoBoundaries](https://www.geoboundaries.org/) (2020)                                                                          |

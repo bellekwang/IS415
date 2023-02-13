@@ -1,0 +1,186 @@
+---
+title: "Hands-on Exercise 6: Spatial Weights and Application"
+date: "13 Feb 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Setting Up
+
+## Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, spdep, tmap, tidyverse, knitr)
+```
+
+## Importing Data
+
+### Hunan Shapefile
+
+```{r}
+hunan <- st_read(
+  dsn = "data/geospatial",
+  layer = "Hunan"
+)
+```
+
+-   hunan is a POLYGON sf data frame with 88 features
+
+-   Hunan is located in Central China which uses a CRS of WGS 84 (?)
+
+### Hunan 2012 Development Indicator
+
+```{r}
+hunan2012 <- read_csv("data/aspatial/Hunan_2012.csv")
+```
+
+## Relational Joint
+
+Using the `left_join()` function of dplyr package, combine hunan2012 to hunan sf data frame.
+
+Using the `select()` function, pick out columns:
+
+```{r}
+hunan <- left_join(hunan, hunan2012) %>%
+  select(1:4, 7, 15)
+```
+
+# Visualising Regional Development Indicator
+
+Using qtm() function from tmap, create a basemap and a choropleth map, showing the distribution of GDPPC 2012.
+
+```{r}
+basemap <- tm_shape(hunan) +
+  tm_polygons() +
+  tm_text("NAME_3", size = 0.3)
+
+gdppc <- qtm(hunan, "GDPPC")
+
+tmap_arrange(basemap, gdppc, asp = 1, ncol = 2)
+```
+
+# Computing Contiguity Spatial Weights
+
+-   poly2nb() from spdep package
+
+## Computing Queen contiguity based neighbours
+
+```{r}
+wm_q <- poly2nb(hunan, queen = TRUE)
+summary(wm_q)
+```
+
+-   The most connected area unit has 11 neighbours
+
+-   There are 2 area units with only one neighbour
+
+To check the neighbours of one area unit:
+
+```{r}
+wm_q[[1]]
+```
+
+-   Polygon 1 has 5 neighbours
+
+To check the country name of area unit 1:
+
+```{r}
+hunan$County[1]
+```
+
+To check the country names of the 5 neighbours:
+
+```{r}
+hunan$NAME_3[c(2, 3, 4, 57, 85)]
+```
+
+To retrieve the GDPPC of the 5 neighbour countries:
+
+```{r}
+nb1 <- wm_q[[1]]
+nb1 <- hunan$GDPPC[nb1]
+nb1
+```
+
+## Creating Rook Contiguity Based Neighbours
+
+Using `poly2nb()` function, when `queen = FALSE`, rook's case will be used.
+
+```{r}
+wm_r <- poly2nb(hunan, queen = FALSE)
+summary(wm_r)
+```
+
+-   most connected area unit has 10 neighbours, 1 less than that of queen's case
+
+-   2 area unit has only one neighbour, same as that of queen's case
+
+## Visualising Contiguity Weights
+
+Connectivity graph: takes a point and displays a line to each neighbouring point
+
+-   for polygons: need to get points before creating the graph (use centroids: latitude and longitude)
+
+### Calculating Centroids
+
+To get the longitude:
+
+```{r}
+longitude <- map_dbl(hunan$geometry, ~st_centroid(.x)[[1]])
+```
+
+To get the latitude:
+
+```{r}
+latitude <- map_dbl(hunan$geometry, ~st_centroid(.x)[[2]])
+```
+
+Combing the latitude and longitude into one object:
+
+```{r}
+coords <- cbind(longitude, latitude)
+```
+
+```{r}
+head(coords)
+```
+
+### Plotting Queen Contiguity Based Neighbours Map
+
+Plot the geometry boundary before the points and lines.
+
+```{r}
+plot(hunan$geometry, border = "lightgrey")
+plot(wm_q, coords, pch = 19, cex = 0.6, add = TRUE, col = "red")
+```
+
+### Plotting Rook Contiguity Based Neighbours Map
+
+```{r}
+plot(hunan$geometry, border = "lightgrey")
+plot(wm_r, coords, pch = 19, cex = 0.6, add = TRUE, col = "red")
+```
+
+### Plotting Both Maps
+
+```{r}
+par(mfrow=c(1,2))
+plot(hunan$geometry, border="lightgrey")
+plot(wm_q, coords, pch = 19, cex = 0.6, add = TRUE, col= "red", main="Queen Contiguity")
+plot(hunan$geometry, border="lightgrey")
+plot(wm_r, coords, pch = 19, cex = 0.6, add = TRUE, col = "red", main="Rook Contiguity")
+```
+
+# Computing Distance Based Neighbours
+
+-   `dnearneigh()` from spdep: identifies neighbours of region points by euclidean distance
+
+    -   bounds: lower d1 and upper d2
+
+    -   
