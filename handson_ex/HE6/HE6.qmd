@@ -160,6 +160,12 @@ plot(hunan$geometry, border = "lightgrey")
 plot(wm_q, coords, pch = 19, cex = 0.6, add = TRUE, col = "red")
 ```
 
+-   `add = TRUE`: Add to a previous plot
+
+-   `pch`: option to specify symbols for plotting points
+
+-   `cex`: amount by which plotting text and symbols should be scaled relative to the default
+
 ### Plotting Rook Contiguity Based Neighbours Map
 
 ```{r}
@@ -183,4 +189,104 @@ plot(wm_r, coords, pch = 19, cex = 0.6, add = TRUE, col = "red", main="Rook Cont
 
     -   bounds: lower d1 and upper d2
 
-    -   
+    -   unit: km
+
+## Calculating Cut-off Distance
+
+Cut-off distance: upper limit for distance band
+
+First, using `knearneigh()` of spdep, calculate a matrix of indices of points of the k nearest neighbours.
+
+At the same time, using `knn2nb()`, convert the knn object into a nb list (vectors containing neighbour ids).
+
+```{r}
+k1 <- knn2nb(knearneigh(coords))
+```
+
+Next, calculate the length of neighbour relationship edges using `nbdists()` and remove the list structure using `unlist()`.
+
+```{r}
+k1dists <- unlist(nbdists(k1, coords, longlat = TRUE))
+summary(k1dists)
+```
+
+-   Largest first nearest neighbour distance = 61.79km
+
+-   Upper threshold = 61.79km, anything below this distance will guarantee at least 1 neighbour
+
+## Calculating Fixed Distance Weight Matrix
+
+Using `dnearneigh()` function, calculate the weight matrix with an upper limit of 62km.
+
+```{r}
+wm_d62 <- dnearneigh(coords, 0, 62, longlat = TRUE)
+wm_d62
+```
+
+-   Each polygon has an average of 3.68 links.
+
+To display the matrix, use the `table()` and `card()` functions from spdep.
+
+```{r}
+table(hunan$County, card(wm_d62))
+```
+
+## Plotting Fixed Distance Weight Matrix
+
+```{r}
+plot(hunan$geometry, border = "lightgrey")
+plot(wm_d62, coords, add = TRUE)
+plot(k1, coords, add = TRUE, col = "red", length = 0.08)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(hunan$geometry, border="lightgrey")
+plot(k1, coords, add=TRUE, col="red", length=0.08, main="1st nearest neighbours")
+plot(hunan$geometry, border="lightgrey")
+plot(wm_d62, coords, add=TRUE, pch = 19, cex = 0.6, main="Distance link")
+```
+
+## Calculating Adaptive Distance Weight Matrix
+
+Instead of controlling the distance, can choose the number of nearest neighbours.
+
+```{r}
+knn6 <- knn2nb(knearneigh(coords, k = 6))
+knn6
+```
+
+## Plotting Adaptive Distance Based Matrix
+
+```{r}
+plot(hunan$geometry, border = "lightgrey")
+plot(knn6, coords, pch = 19, cex = 0.6, add = TRUE, col = "red")
+```
+
+# Calculate Weights Based on Inversed Distance Method
+
+First, compute the distances between area using `nbdists()` from spdep package.
+
+```{r}
+dist <- nbdists(wm_q, coords, longlat = TRUE)
+```
+
+```{r}
+ids <- lapply(dist, function(x) 1/(x))
+head(ids)
+```
+
+Next, perform row standardisation using `nb2listw()` with `style = "W"` to assign an equal weight.
+
+-   `zero.policy = TRUE`: allows for lists of non-neighbours
+
+```{r}
+rswm_q <- nb2listw(wm_q, style = "W", zero.policy = TRUE)
+rswm_q
+```
+
+To check the weight of the first polygon's neighbours
+
+```{r}
+rswm_q$weights[1]
+```
