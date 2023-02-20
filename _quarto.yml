@@ -27,6 +27,8 @@ website:
             text: Exercise 5
           - href: inclass_ex/ICE6/ICE6.qmd
             text: Exercise 6
+          - href: inclass_ex/ICE7/ICE7.qmd
+            text: Exercise 7
       - text: Take-Home Exercises
         menu: 
           - href: take_home_ex/THE1/THE1.qmd

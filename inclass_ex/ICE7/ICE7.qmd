@@ -1,0 +1,388 @@
+---
+title: "In Class Exercise 7: Global and Local Measures of Spatial Autocorrelation (sfdep Methods)"
+date: "20 Feb 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Notes
+
+## Spatial Autocorrelation
+
+Describes the presence of systematic spatial variation in a variable.
+
+-   try to reject null hypothesis: phenomenon does not depend on space
+
+Values:
+
+-   close to 1: positive spatial autocorrelation
+
+-   0: no correlation
+
+-   close to -1: negative spatial autocorrelation
+
+#### Positive Spatial Autocorrelation
+
+1.  Clustering
+2.  Neighbours are similar
+3.  Compatible with diffusion
+
+### Spatial Dependency
+
+Spatial relationship of variable values, existence of statistical dependence in a collection of random variables (each associated with a different geographical location)
+
+### Methods to Measure:
+
+#### Moran's I
+
+Describes how features differ from the values in the study area as a whole (requires weight matrix).
+
+-   Results (Z-value):
+
+    -   positive (\>0): Clustered, observations tend to be similar
+
+    -   negative (\<0): Dispersed, observations tend to be dissimilar
+
+    -   approx. 0: observations are arranged randomly over space
+
+#### Geary's c
+
+Describes how features differ from their immediate neighbours
+
+-   Results (Z-value):
+
+    -   Large c value (\>1): dispersed, observations tend to be dissimilar
+
+    -   Small c value (\<1): clustered, observations tend to be similar
+
+    -   =1: observations arranged randomly over space
+
+#### Running Simulations
+
+-   use two-tailed test
+
+-   nsim = 99 (100 simulations)
+
+-   confident interval: alpha = 0.05
+
+#### Getis-Ord Global G (G statistics)
+
+Computes overall concentrations/lack of concentration in all pairs that are neighbours given the definition of neighbouring areas
+
+-   differences (2): not finding differences but combined values, depends on distance weight instead of proximity weight
+
+```{=html}
+<!-- -->
+```
+-   only accepts positive values for variables
+
+## Local Spatial Autocorrelation Statistics
+
+Decompose from global measures.
+
+-   detect clusters/outliers
+
+-   identify hot/cold spot areas
+
+-   assess assumptions of stationary
+
+-   identify distances beyond which no discernible association obtains(???)
+
+### LISA (Local Indicator of Spatial Autocorrelation)
+
+Indication of extent of significant spatial clustering of similar values around the observation
+
+-   sum of LISAs for all observations: proportional to global indicator of spatial association
+
+-   local Moran's I
+
+-   detect clusters AND outliers
+
+### Intepretation of Local Moran and Scatterplot
+
+Outlier: significant and negative if location is associated with relatively low values in surrounding locations
+
+Cluster: significant and positive if location is associated with relatively high values of surrounding locations
+
+-   p-value for feature must be small enough for cluster/outlier to be considered statistically significant
+
+1.  Positive Autocorrelation (Cluster):
+    1.  High-high: is high and neighbours are high
+
+    2.  Low-low: is low and neighbours are low
+2.  Negative Autocorrelation (Outlier):
+    1.  Low-high: is low outlier among high neighbours
+
+    2.  High-low: is high outlier among low neighbours
+
+### Hot and Cold Spot Areas
+
+Decompose local G-stats, based on distance. Only detects clusters, but differentiate high-high (hot) or low-low clusters (cold).
+
+-   Use Getis-Ord Gi and Gi
+
+-   2 calibrations: one takes into consideration of it's distance (??)
+
+```{=html}
+<!-- -->
+```
+-   hot spot area: significant and positive, location is associated with relatively high values of the surrounding locations
+
+-   cold spot area: significant and negative, location is associated with relatively low values in surrounding locations
+
+### Emerging Hot Spot Analysis (EHSA)
+
+For time series. because data can evolve overtime.
+
+# In-Class Exercise
+
+## Setting Up
+
+### Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, sfdep, tmap, tidyverse, zoo)
+```
+
+### Importing Data
+
+#### Geospatial Data: Hunan
+
+```{r}
+hunan <- st_read(
+  dsn = "data/geospatial",
+  layer = "Hunan"
+)
+```
+
+#### Aspatial Data: Hunan 2012
+
+```{r}
+hunan2012 <- read.csv("data/aspatial/Hunan_2012.csv")
+```
+
+#### Combining Datasets
+
+```{r}
+hunan <- left_join(hunan, hunan2012) %>%
+  select(1:4, 7, 15)
+```
+
+## Global & Local Measure of Spatial Autocorrelation
+
+### Computing Contiguity Weights (Queen's Method)
+
+```{r}
+wm_q <- hunan %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wt = st_weights(nb, style = "W"),
+    .before = 1
+  )
+```
+
+-   nb: neighbour list
+
+-   wt: weight matrix, "W": row standardised
+
+### Global Moran's I
+
+(Optional) Computing Moran's I with `global_moran(variable, nb, wt)`:
+
+```{r}
+moranI <- global_moran(
+  wm_q$GDPPC, wm_q$nb, wm_q$wt
+)
+```
+
+-   moranI: list of 2 values
+
+    -   I: 0.301
+
+    -   K: 7.64
+
+Performing Global Moran's I test with `global_moran_test(variable, nb, wt)`:
+
+```{r}
+global_moran_test(
+  wm_q$GDPPC, wm_q$nb, wm_q$wt
+)
+```
+
+-   p-value: whether it is significant enough to reject null value
+
+    -   1.095e-06 \<\< 0.05 (alpha-value): have enough statistical evidence to reject the null hypothesis
+
+-   alternative hypothesis: greater because I statistics/Variance(??) is positive.
+
+#### Permutation Test (Simulation)
+
+```{r}
+set.seed(1234)
+```
+
+-   ensure simulation results are reproducible, globally
+
+```{r}
+global_moran_perm(
+  wm_q$GDPPC, wm_q$nb, wm_q$wt, nsim = 99
+)
+```
+
+-   p-value \< 0.05: significant enough to reject null hypothesis
+
+### Local Moran's I
+
+```{r}
+lisa <- wm_q %>%
+  mutate(
+    local_moran = local_moran(
+      GDPPC, nb, wt, nsim = 99
+    ),
+    .before = 1
+  ) %>%
+  unnest(local_moran)
+lisa
+```
+
+-   `unnest()`: convert list to value for future plotting
+
+-   output: lisa table with new variables (Ii: Moran stats., z_ii: standardised, p_ii: p-value)
+
+    -   mean, median and pysal: 4 quadrants labelled
+
+        -   mean and pysal usually the same, usually use [mean]{.underline}
+
+### Plotting Local Moran I
+
+```{r}
+tmap_mode("plot")
+tm_shape(lisa) +
+  tm_fill("ii") +
+  tm_borders(alpha = 0.5)
+```
+
+#### p-value (p_ii)
+
+\* Better to plot simulated results (e.g. p_ii_sim) \> p_ii (raw value): ensure results are more stable
+
+```{r}
+tmap_mode("plot")
+tm_shape(lisa) +
+  tm_fill("p_ii_sim") +
+  tm_borders(alpha = 0.5)
+```
+
+#### Combining the 2 plots
+
+```{r}
+lisa_sig <- lisa %>%
+  filter(p_ii < 0.05)
+
+tmap_mode("plot")
+tm_shape(lisa) +
+  tm_polygons() +
+  tm_borders(alpha = 0.5) +
+tm_shape(lisa_sig) +
+  tm_fill("mean") +
+  tm_borders(alpha = 0.5)
+```
+
+***\*Should have one more category called not significant. (follow hands on exercise example!!)*****\***
+
+### Hot and Cold Spot Area Analysis
+
+Generally use G\* `local_gstar_perm()`:
+
+```{r}
+HCSA <- wm_q %>%
+  mutate(
+    local_Gi = local_gstar_perm(
+      GDPPC, nb, wt, nsim = 99
+    ),
+    .before = 1
+  ) %>%
+  unnest(local_Gi)
+HCSA
+```
+
+#### Plot
+
+```{r}
+tmap_mode("plot")
+tm_shape(HCSA) +
+  tm_fill("gi_star") +
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8))
+```
+
+```{r}
+tmap_mode("plot")
+tm_shape(HCSA) +
+  tm_fill("p_sim") +
+  tm_borders(alpha = 0.5)
+```
+
+-   interested in values smaller than 0.05, majority are more than 0.05
+
+    -   ***should change the categories to sth smaller!!***
+
+# EHCA
+
+## Create a Space Time Cube
+
+```{r}
+GDPPC <- read.csv("data/aspatial/Hunan_GDPPC.csv")
+```
+
+```{r}
+GDPPC_st <- spacetime(
+  GDPPC, hunan,
+  .loc_col = "County",
+  .time_col = "Year"
+)
+```
+
+-   spatial and aspatial data are nested
+
+## Spatial Autocorrelation
+
+### Computing nb and wt
+
+```{r}
+GDPPC_nb <- GDPPC_st %>%
+  activate("geometry") %>%
+  mutate(
+    nb = include_self(st_contiguity(geometry)),
+    wt = st_weights(nb)
+  ) %>%
+  set_nbs("nb") %>%
+  set_wts("wt")
+```
+
+### Computing G\*
+
+```{r}
+#gi_stars <- GDPPC_nb %>%
+  #group_by(Year) %>%
+  #mutate(gi_star = local_gstar_perm(
+    #GDPPC, nb, wt, nsim = 99
+  #)) %>%
+  #unnest(gi_star)
+#gi_stars
+```
+
+### Mann-Kendall Test
+
+```{r}
+#cbg <- gi_stars %>%
+  #ungroup() %>%
+  #filter(County == "Changsa") %>%
+  
+```
