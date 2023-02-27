@@ -1,0 +1,882 @@
+---
+title: "Take-home Exercise 2"
+subtitle: "Spatio-temporal Analysis of COVID-19 Vaccination Trends at the Sub-district Level, DKI Jakarta"
+date: "26 Feb 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Context
+
+## Problem Statement
+
+Understanding how Covid-19 vaccination rate is distributed around DKI Jakarta and how it changes over time.
+
+## Data
+
+| Data                                    | Format (Type)          | Description                                                                                                                    | Source                                                                                                             |
+|------------------|------------------|------------------|------------------|
+| Riwayat File Vaksinasi DKI Jakarta      | CSV (Aspatial)         | Details the daily number of vaccinations in Jakarta by person type and sub-district (Only the first day of each month is used) | [Riwatat File Vaksinasi DKI Jakarta](https://riwayat-file-vaksinasi-dki-jakarta-jakartagis.hub.arcgis.com/) (2022) |
+| DKI Jakarta Adminstration Boundary 2019 | Shapefile (Geospatial) | DKI Jakarta administrative boundaries                                                                                          | [Indonesia Geospasial](https://www.indonesia-geospasial.com/2020/04/download-shapefile-shp-batas-desa.html) (2019) |
+
+::: callout-note
+For the Vaksinasi DKI Jakarta data for March 2022, there was no available link to 1 March 2022 data. Thus for March 2022, the first day available, 2 March 2022, will be used instead.
+:::
+
+# Setting Up
+
+## Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, tmap, sfdep, tidyverse, zoo, readxl, plotly)
+```
+
+-   sf: importing and handling geospatial data
+
+-   tidyverse: wrangling attribute data
+
+-   sfdep: newer package of spdep (does not require conversion to sp)
+
+-   tmap: prepare cartographic quality chropleth maps
+
+-   zoo
+
+-   readxl: read excel (xlsx) format
+
+-   plotly:
+
+## DKI Jakarta Administrative Boundary 2019
+
+### Importing Data
+
+To import a shapefile, use `st_read()` where `dsn` is the targeted directory and `layer` is the name of the files.
+
+```{r}
+jkt <- st_read(
+  dsn = "data/geospatial",
+  layer = "BATAS_DESA_DESEMBER_2019_DUKCAPIL_DKI_JAKARTA"
+)
+```
+
+-   `jkt` is a multipolygon sf dataframe with 269 features
+
+### Projection
+
+The current geodetic CRS is WGS 84 which is wrong. Using `st_transform()`, change the CRS from WGS 84 to DGN95 (EPSG:23845), the national projected coordinates systems of Indonesia TM-3 zone 54.1.
+
+```{r}
+jkt <- st_transform(jkt, crs = 23845)
+st_crs(jkt)
+```
+
+### Data Cleaning
+
+#### Outer Island
+
+First, using tmap functions `tm_shape()` and `tm_polygons()`, plot out `jkt` to understand the area covered. I will also be adding the "DESA" label to identify which are the areas to exclude.
+
+```{r}
+tmap_mode("view")
+tm_shape(jkt) +
+  tm_polygons() +
+  tm_text("DESA")
+```
+
+There are many outer island shown on the plot above. As seen from the plot, the areas to be excluded are: Pulau Harapan, Pulau Kelapa, Pulau Panggang, Pulau Tidung, Pulau Pari and Pulau Untung Jawa.
+
+```{r}
+outer_islands <- c("PULAU HARAPAN", "PULAU KELAPA", "PULAU PANGGANG", "PULAU TIDUNG", "PULAU PARI", "PULAU UNTUNG JAWA")
+```
+
+To remove these areas, use the `filter()` function.
+
+```{r}
+jkt <- jkt %>%
+  filter(!DESA %in% outer_islands)
+```
+
+Now just the plot mode, plot out `jkt`.
+
+```{r}
+tmap_mode("plot")
+tm_shape(jkt) +
+  tm_polygons()
+```
+
+As you can see from the plot, all the outer islands are excluded.
+
+#### Unnecessary Fields
+
+Only the first nine columns of the sf dataframe is relevant. Using the `select()` function, pick out the first nine columns.
+
+```{r}
+jkt <- select(jkt, 1:9)
+```
+
+### Final `jkt` Data Frame
+
+```{r}
+st_geometry(jkt)
+```
+
+## Riwayat File Vaksinasi DKI Jakarta
+
+There are 12 excel files from July 2021 to June 2022 to be imported. Using `read_excel()` function, import the "Data Kelurahan" sheet.
+
+```{r}
+july_2021 = read_excel("data/aspatial/july_2021.xlsx", sheet = 1)
+aug_2021 = read_excel("data/aspatial/aug_2021.xlsx", sheet = "Data Kelurahan")
+sept_2021 = read_excel("data/aspatial/sept_2021.xlsx", sheet = "Data Kelurahan")
+oct_2021 = read_excel("data/aspatial/oct_2021.xlsx", sheet = "Data Kelurahan")
+nov_2021 = read_excel("data/aspatial/nov_2021.xlsx", sheet = "Data Kelurahan")
+dec_2021 = read_excel("data/aspatial/dec_2021.xlsx", sheet = "Data Kelurahan")
+jan_2022 = read_excel("data/aspatial/jan_2022.xlsx", sheet = "Data Kelurahan")
+feb_2022 = read_excel("data/aspatial/feb_2022.xlsx", sheet = "Data Kelurahan")
+mar_2022 = read_excel("data/aspatial/mar_2022.xlsx", sheet = "Data Kelurahan")
+apr_2022 = read_excel("data/aspatial/apr_2022.xlsx", sheet = "Data Kelurahan")
+may_2022 = read_excel("data/aspatial/may_2022.xlsx", sheet = "Data Kelurahan")
+june_2022 = read_excel("data/aspatial/june_2022.xlsx", sheet = "Data Kelurahan")
+```
+
+### Data Cleaning
+
+I will exclude all the outer_islands identified earlier.
+
+```{r}
+july_2021 <- july_2021 %>%
+  filter(!KELURAHAN %in% outer_islands)
+aug_2021 <- aug_2021 %>%
+  filter(!KELURAHAN %in% outer_islands)
+sept_2021 <- sept_2021 %>%
+  filter(!KELURAHAN %in% outer_islands)
+oct_2021 <- oct_2021 %>%
+  filter(!KELURAHAN %in% outer_islands)
+nov_2021 <- nov_2021 %>%
+  filter(!KELURAHAN %in% outer_islands)
+dec_2021 <- dec_2021 %>%
+  filter(!KELURAHAN %in% outer_islands)
+jan_2022 <- jan_2022 %>%
+  filter(!KELURAHAN %in% outer_islands)
+feb_2022 <- feb_2022 %>%
+  filter(!KELURAHAN %in% outer_islands)
+mar_2022 <- mar_2022 %>%
+  filter(!KELURAHAN %in% outer_islands)
+apr_2022 <- apr_2022 %>%
+  filter(!KELURAHAN %in% outer_islands)
+may_2022 <- may_2022 %>%
+  filter(!KELURAHAN %in% outer_islands)
+june_2022 <- june_2022 %>%
+  filter(!KELURAHAN %in% outer_islands)
+```
+
+All the tables now have 262 observations, 1 less than the `jkt` multipolygon dataframe.
+
+#### Unnecessary Columns
+
+Only the first 6 columns are important to the exercise.
+
+```{r}
+july_2021 <- select(july_2021, 1:6)
+aug_2021 <- select(aug_2021, 1:6)
+sept_2021 <- select(sept_2021, 1:6)
+oct_2021 <- select(oct_2021, 1:6)
+nov_2021 <- select(nov_2021, 1:6)
+dec_2021 <- select(dec_2021, 1:6)
+jan_2022 <- select(jan_2022, 1:6)
+feb_2022 <- select(feb_2022, 1:6)
+mar_2022 <- select(mar_2022, 1:6)
+apr_2022 <- select(apr_2022, 1:6)
+may_2022 <- select(may_2022, 1:6)
+june_2022 <- select(june_2022, 1:6)
+```
+
+Now all the datasets only have 6 columns.
+
+### Combining Datasets
+
+First, add a column to each data frame with the date using the `mutate()` function.
+
+```{r}
+july_2021 <- july_2021 %>%
+  mutate(dateMonth = as.Date("2021-07-01"))
+aug_2021 <- aug_2021 %>%
+  mutate(dateMonth = as.Date("2021-08-01"))
+sept_2021 <- sept_2021 %>%
+  mutate(dateMonth = as.Date("2021-09-01"))
+oct_2021 <- oct_2021 %>%
+  mutate(dateMonth = as.Date("2021-10-01"))
+nov_2021 <- nov_2021 %>%
+  mutate(dateMonth = as.Date("2021-11-01"))
+dec_2021 <- dec_2021 %>%
+  mutate(dateMonth = as.Date("2021-12-01"))
+jan_2022 <- jan_2022 %>%
+  mutate(dateMonth = as.Date("2022-01-01"))
+feb_2022 <- feb_2022 %>%
+  mutate(dateMonth = as.Date("2022-02-01"))
+mar_2022 <- mar_2022 %>%
+  mutate(dateMonth = as.Date("2022-03-02"))
+apr_2022 <- apr_2022 %>%
+  mutate(dateMonth = as.Date("2022-04-01"))
+may_2022 <- may_2022 %>%
+  mutate(dateMonth = as.Date("2022-05-01"))
+june_2022 <- june_2022 %>%
+  mutate(dateMonth = as.Date("2022-06-01"))
+```
+
+Next, I will combine all the 12 datasets into 1 dataset using `rbind()` function.
+
+```{r}
+vacc_data <- rbind(july_2021, aug_2021, sept_2021, oct_2021, nov_2021, dec_2021, jan_2022, feb_2022, mar_2022, apr_2022, may_2022, june_2022)
+```
+
+### Final Dataset
+
+```{r}
+head(vacc_data)
+```
+
+# Choropleth Mapping and Analysis
+
+## Monthly Vaccination Rates at Sub-district Level
+
+### Computing Monthly Vaccination Rates
+
+-   SASARAN (Target - target people to be vaccinated)
+
+-   BELUM VAKSIN (Yet to be vaccinated)
+
+To compute the monthly vaccination rate,
+
+$$
+Monthly Vaccination Rate = \frac{(SASARAN - BELUMVAKSIN)}{SUM(SASARAN, BELUMVAKSIN)}
+$$
+
+```{r}
+vacc_data <- vacc_data %>%
+  mutate(monthly_vacc_rate = (SASARAN - `BELUM VAKSIN`)/(SASARAN + `BELUM VAKSIN`))
+```
+
+### Combining Dataset and Shapefile
+
+```{r}
+vacc_july_2021 <- vacc_data %>%
+  filter(dateMonth == "2021-07-01")
+jkt_july_2021 <- left_join(jkt, vacc_july_2021, by = c("DESA" = "KELURAHAN" ))
+```
+
+## Choropleth Mapping
+
+Using the `qtm()` function, plot out the choropleth map for July 2021.
+
+```{r}
+qtm(jkt_july_2021, "monthly_vacc_rate")
+```
+
+As seen above, there are missing monthly vaccinated rate values for some sub-districts. There is a mismatch and lack of vaccination data for these areas.
+
+I will leave them as missing values instead of giving a monthly vaccination rate of 0 to avoid confusion with actual areas with recorded 0 rates.
+
+### Other Months
+
+Repeat the above steps for the next 11 months.
+
+```{r}
+#| code-fold: true
+#AUGUST 2021
+vacc_aug_2021 <- vacc_data %>%
+  filter(dateMonth == "2021-08-01")
+jkt_aug_2021 <- left_join(jkt, vacc_aug_2021, by = c("DESA" = "KELURAHAN" ))
+
+#SEPTEMBER 2021
+vacc_sept_2021 <- vacc_data %>%
+  filter(dateMonth == "2021-09-01")
+jkt_sept_2021 <- left_join(jkt, vacc_sept_2021, by = c("DESA" = "KELURAHAN" ))
+
+#OCTOBER 2021
+vacc_oct_2021 <- vacc_data %>%
+  filter(dateMonth == "2021-10-01")
+jkt_oct_2021 <- left_join(jkt, vacc_oct_2021, by = c("DESA" = "KELURAHAN" ))
+
+#NOVEMBER 2021
+vacc_nov_2021 <- vacc_data %>%
+  filter(dateMonth == "2021-11-01")
+jkt_nov_2021 <- left_join(jkt, vacc_nov_2021, by = c("DESA" = "KELURAHAN" ))
+
+#DECEMBER 2021
+vacc_dec_2021 <- vacc_data %>%
+  filter(dateMonth == "2021-12-01")
+jkt_dec_2021 <- left_join(jkt, vacc_dec_2021, by = c("DESA" = "KELURAHAN" ))
+
+#JANUARY 2022
+vacc_jan_2022 <- vacc_data %>%
+  filter(dateMonth == "2022-01-01")
+jkt_jan_2022 <- left_join(jkt, vacc_jan_2022, by = c("DESA" = "KELURAHAN" ))
+
+#FEBRUARY 2022
+vacc_feb_2022 <- vacc_data %>%
+  filter(dateMonth == "2022-02-01")
+jkt_feb_2022 <- left_join(jkt, vacc_feb_2022, by = c("DESA" = "KELURAHAN" ))
+
+#MARCH 2022
+vacc_mar_2022 <- vacc_data %>%
+  filter(dateMonth == "2022-03-02")
+jkt_mar_2022 <- left_join(jkt, vacc_mar_2022, by = c("DESA" = "KELURAHAN" ))
+
+#APRIL 2022
+vacc_apr_2022 <- vacc_data %>%
+  filter(dateMonth == "2022-04-01")
+jkt_apr_2022 <- left_join(jkt, vacc_apr_2022, by = c("DESA" = "KELURAHAN" ))
+
+#MAY 2022
+vacc_may_2022 <- vacc_data %>%
+  filter(dateMonth == "2022-05-01")
+jkt_may_2022 <- left_join(jkt, vacc_may_2022, by = c("DESA" = "KELURAHAN" ))
+
+#JUNE 2022
+vacc_june_2022 <- vacc_data %>%
+  filter(dateMonth == "2022-06-01")
+jkt_june_2022 <- left_join(jkt, vacc_june_2022, by = c("DESA" = "KELURAHAN" ))
+```
+
+```{r}
+#| code-fold: true
+qtm(jkt_july_2021, "monthly_vacc_rate", title = "July 2021")
+qtm(jkt_aug_2021, "monthly_vacc_rate", title = "Aug 2021")
+qtm(jkt_sept_2021, "monthly_vacc_rate", title = "Sept 2021")
+qtm(jkt_oct_2021, "monthly_vacc_rate", title = "Oct 2021")
+qtm(jkt_nov_2021, "monthly_vacc_rate", title = "Nov 2021")
+qtm(jkt_dec_2021, "monthly_vacc_rate", title = "Dec 2021")
+qtm(jkt_jan_2022, "monthly_vacc_rate", title = "Jan 2022")
+qtm(jkt_feb_2022, "monthly_vacc_rate", title = "Feb 2022")
+qtm(jkt_mar_2022, "monthly_vacc_rate", title = "Mar 2022")
+qtm(jkt_apr_2022, "monthly_vacc_rate", title = "Apr 2022")
+qtm(jkt_may_2022, "monthly_vacc_rate", title = "May 2022")
+qtm(jkt_june_2022, "monthly_vacc_rate", title = "June 2022")
+```
+
+## Spatial Patterns
+
+# Local Gi\* Analysis
+
+## Computing Local Gi\* of Monthly Vaccination Rate
+
+To compute local Gi\* statistics, it requires the neighbour list (using `st_contiguity()`)and the wts (using `st_inverse_distance()`).
+
+Using `jkt_july_2021` as an example:
+
+```{r}
+jkt_july_2021 = jkt_july_2021 %>% drop_na(monthly_vacc_rate)
+jkt_july_2021_idw <- jkt_july_2021 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+```
+
+```{r}
+HCSA_july_2021 <- jkt_july_2021_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+HCSA_july_2021
+```
+
+## Displaying Gi\* Maps
+
+(only significant values: p\<0.05)
+
+```{r}
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_july_2021) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of July 2021",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_july_2021) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+## Other Months
+
+Repeat the previous steps to the other 11 months.
+
+### Aug 2021
+
+```{r}
+#| code-fold: true
+jkt_aug_2021 = jkt_aug_2021 %>% drop_na(monthly_vacc_rate)
+jkt_aug_2021_idw <- jkt_aug_2021 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_aug_2021 <- jkt_aug_2021_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_aug_2021) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of August 2021",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_aug_2021) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### September 2021
+
+```{r}
+#| code-fold: true
+jkt_sept_2021 = jkt_sept_2021 %>% drop_na(monthly_vacc_rate)
+jkt_sept_2021_idw <- jkt_sept_2021 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_sept_2021 <- jkt_sept_2021_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_sept_2021) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of September 2021",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_sept_2021) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### October 2021
+
+```{r}
+#| code-fold: true
+jkt_oct_2021 = jkt_oct_2021 %>% drop_na(monthly_vacc_rate)
+jkt_oct_2021_idw <- jkt_oct_2021 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_oct_2021 <- jkt_oct_2021_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_oct_2021) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of October 2021",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_oct_2021) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### November 2022
+
+```{r}
+#| code-fold: true
+jkt_nov_2021 = jkt_nov_2021 %>% drop_na(monthly_vacc_rate)
+jkt_nov_2021_idw <- jkt_nov_2021 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_nov_2021 <- jkt_nov_2021_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_nov_2021) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of November 2021",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_nov_2021) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### December 2021
+
+```{r}
+#| code-fold: true
+jkt_dec_2021 = jkt_dec_2021 %>% drop_na(monthly_vacc_rate)
+jkt_dec_2021_idw <- jkt_dec_2021 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_dec_2021 <- jkt_dec_2021_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_dec_2021) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of December 2021",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_dec_2021) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### January 2022
+
+```{r}
+#| code-fold: true
+jkt_jan_2022 = jkt_jan_2022 %>% drop_na(monthly_vacc_rate)
+jkt_jan_2022_idw <- jkt_jan_2022 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_jan_2022 <- jkt_jan_2022_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_jan_2022) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of January 2022",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_jan_2022) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### February 2022
+
+```{r}
+#| code-fold: true
+jkt_feb_2022 = jkt_feb_2022 %>% drop_na(monthly_vacc_rate)
+jkt_feb_2022_idw <- jkt_feb_2022 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_feb_2022 <- jkt_feb_2022_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_feb_2022) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of February 2022",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_feb_2022) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### March 2022
+
+```{r}
+#| code-fold: true
+jkt_mar_2022 = jkt_mar_2022 %>% drop_na(monthly_vacc_rate)
+jkt_mar_2022_idw <- jkt_mar_2022 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_mar_2022 <- jkt_mar_2022_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_mar_2022) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of March 2022",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_mar_2022) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### April 2022
+
+```{r}
+#| code-fold: true
+jkt_apr_2022 = jkt_apr_2022 %>% drop_na(monthly_vacc_rate)
+jkt_apr_2022_idw <- jkt_apr_2022 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_apr_2022 <- jkt_apr_2022_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_apr_2022) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of April 2022",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_apr_2022) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### May 2022
+
+```{r}
+#| code-fold: true
+jkt_may_2022 = jkt_may_2022 %>% drop_na(monthly_vacc_rate)
+jkt_may_2022_idw <- jkt_may_2022 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_may_2022 <- jkt_may_2022_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_may_2022) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of May 2022",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_may_2022) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+### June 2022
+
+```{r}
+#| code-fold: true
+jkt_june_2022 = jkt_june_2022 %>% drop_na(monthly_vacc_rate)
+jkt_june_2022_idw <- jkt_june_2022 %>%
+  mutate(
+    nb = st_contiguity(geometry),
+    wts = st_inverse_distance(
+      nb, geometry, scale = 1, alpha = 1
+    ),
+  .before = 1
+  )
+
+HCSA_june_2022 <- jkt_june_2022_idw %>% 
+  mutate(local_Gi = local_gstar_perm(
+    monthly_vacc_rate, nb, wt, nsim = 99),
+         .before = 1) %>%
+  unnest(local_Gi)
+
+tmap_mode("plot")
+map1 <- tm_shape(HCSA_june_2022) +
+  tm_fill("gi_star", palette = "-RdBu") + 
+  tm_borders(alpha = 0.5) +
+  tm_view(set.zoom.limits = c(6,8)) +
+  tm_layout(main.title = "Gi* of June 2022",
+            main.title.size = 0.8)
+
+map2 <- tm_shape(HCSA_june_2022) +
+  tm_fill("p_value",
+          breaks = c(0, 0.001, 0.01, 0.05, 1),
+              labels = c("0.001", "0.01", "0.05", "Not sig"), palette = "-Greens") + 
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "p-value of Gi*",
+            main.title.size = 0.8)
+
+tmap_arrange(map1, map2, ncol = 2)
+```
+
+## Statistical Conclusion
+
+# Emerging Hot Spot Analysis
+
+## Mann-Kendall Test
+
+(using spatio-temporal local Gi\* values)
+
+### Creating Time Series Cube
+
+```{r}
+vacc_data = vacc_data %>% drop_na(c("KODE KELURAHAN", "WILAYAH KOTA", "KECAMATAN"))
+vacc_data_st <- spacetime(vacc_data, jkt, ".DESA", "dateMonth")
+```
+
+```{r}
+is_spacetime_cube(vacc_data_st)
+```
+
+### Computing Spatial Weights
+
+## Temporal Trends
+
+(select 3 sub-districts)
+
+## EHSA Map
+
+(only significant values)
+
+## Spatial Patterns
+
+# Conclusion

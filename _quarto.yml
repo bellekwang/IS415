@@ -33,6 +33,8 @@ website:
         menu: 
           - href: take_home_ex/THE1/THE1.qmd
             text: Exercise 1
+          - href: take_home_ex/THE2/THE2.qmd
+            text: Exercise 2
     right: 
       - href: index.qmd
         text: Home
