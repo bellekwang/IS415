@@ -45,11 +45,11 @@ pacman::p_load(sf, tmap, sfdep, tidyverse, zoo, readxl, plotly, Kendall, ggplot2
 
 -   tmap: prepare cartographic quality chropleth maps
 
--   zoo
+-   zoo: for regular and irregular time series
 
 -   readxl: read excel (xlsx) format
 
--   plotly:
+-   plotly: interactive web graphics from ggplot2 graphs
 
 -   Kendall: to perform Mann-Kendall test
 
@@ -236,33 +236,6 @@ june_2022 <- june_2022 %>%
   mutate(dateMonth = as.Date("2022-06-01"))
 ```
 
-```{r}
-july_2021 <- july_2021 %>%
-  mutate(dateMonthNum = as.numeric(20210701))
-aug_2021 <- aug_2021 %>%
-  mutate(dateMonthNum = as.numeric(20210801))
-sept_2021 <- sept_2021 %>%
-  mutate(dateMonthNum = as.numeric(20210901))
-oct_2021 <- oct_2021 %>%
-  mutate(dateMonthNum = as.numeric(20211001))
-nov_2021 <- nov_2021 %>%
-  mutate(dateMonthNum = as.numeric(20211101))
-dec_2021 <- dec_2021 %>%
-  mutate(dateMonthNum = as.numeric(20211201))
-jan_2022 <- jan_2022 %>%
-  mutate(dateMonthNum = as.numeric(20220101))
-feb_2022 <- feb_2022 %>%
-  mutate(dateMonthNum = as.numeric(20220201))
-mar_2022 <- mar_2022 %>%
-  mutate(dateMonthNum = as.numeric(20220301))
-apr_2022 <- apr_2022 %>%
-  mutate(dateMonthNum = as.numeric(20220401))
-may_2022 <- may_2022 %>%
-  mutate(dateMonthNum = as.numeric(20220501))
-june_2022 <- june_2022 %>%
-  mutate(dateMonthNum = as.numeric(20220601))
-```
-
 Next, I will combine all the 12 datasets into 1 dataset using `rbind()` function.
 
 ```{r}
@@ -288,11 +261,11 @@ The final `vacc_data` dataset has a total of 7 columns:
 
 ### Computing Monthly Vaccination Rates
 
--   SASARAN (Target - target people to be vaccinated)
+-   SASARAN (Targeted people to be vaccinated)
 
 -   BELUM VAKSIN (Yet to be vaccinated)
 
-Using the equation below, compute the monthly vaccination rate and add the rate value as a new column 'monthly_vacc_rate'.
+Using the equation below, compute the monthly vaccination rate and add the rate value as a new column 'monthly_vacc_rate' using the `mutate()` function.
 
 $$
 Monthly Vaccination Rate = \frac{(SASARAN - BELUMVAKSIN)}{SUM(SASARAN, BELUMVAKSIN)}
@@ -405,6 +378,14 @@ qtm(jkt_june_2022, "monthly_vacc_rate", title = "June 2022", fill.palette="Green
 
 ## Spatial Patterns
 
+Over the year, the monthly vaccination rate has been on an overall increase as seen in the legend where the minimum rate rises from 0.10 in July 2021 to 0.6 in June 2022.
+
+Sub-district with consistently high monthly vaccination rates (relative to other areas) is Kelapa Gading Timur. Whereas the sub-district with consistently low monthly rates (relative to other areas) includes Kebon Melati and Petamburan.
+
+March 2022 had the highest monthly vaccination rates.
+
+Overall, excluding the areas with missing values, by October 2021, the monthly vaccination rate across Jakarta has been meeting half of the targeted numbers and has only been increasing since.
+
 # Local Gi\* Analysis
 
 ## Computing Local Gi\* of Monthly Vaccination Rate
@@ -425,7 +406,11 @@ jkt_july_2021_idw <- jkt_july_2021 %>%
   )
 ```
 
-Next, add in the local Gi\* values into a new sf dataset `HCSA_july_2021` as a new column with the `mutate()` function, adding `.before = 1` to place the new column as the first column. The `unnest()` function is used to this make each element of the `local_Gi` list its own row
+::: callout-note
+There are 'NA' values in the `monthly_vacc_rate` column due to missing Kelurahans of the two datasets. These rows need to be dropped to compute the nb and wts.
+:::
+
+Next, calculate the local Gi\* values using `local_gstar_perm()` with the nb and wt values computed in the previous step. Add the local Gi\* values into a new sf dataset `HCSA_july_2021` as a new column with the `mutate()` function, adding `.before = 1` to place the new column as the first column. The `unnest()` function is used to make each element of the `local_Gi` list its own row.
 
 ```{r}
 HCSA_july_2021 <- jkt_july_2021_idw %>% 
@@ -438,14 +423,13 @@ HCSA_july_2021
 
 ## Displaying Gi\* Maps
 
-Using the plot mode, plot out both the Gi\* Map and the p-value of Gi\* using the `HCDA_july_2021` sf dataset containing the newly added Gi\* values.
+Using the plot mode, plot out both the Gi\* Map and the p-value of Gi\* using the `HCDA_july_2021` sf dataset containing the newly added Gi\* values. I will be using the "-RdBu" palette to better visualise the extreme positive and negative Gi\* values which represents the hot and cold spot clusters respectively.
 
 ```{r}
 tmap_mode("plot")
 map1 <- tm_shape(HCSA_july_2021) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of July 2021",
             main.title.size = 0.8)
 
@@ -464,7 +448,7 @@ tmap_arrange(map1, map2, ncol = 2)
 
 Repeat the previous steps to the other 11 months.
 
-### Aug 2021
+### August 2021
 
 ```{r}
 #| code-fold: true
@@ -488,7 +472,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_aug_2021) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of August 2021",
             main.title.size = 0.8)
 
@@ -527,7 +510,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_sept_2021) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of September 2021",
             main.title.size = 0.8)
 
@@ -566,7 +548,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_oct_2021) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of October 2021",
             main.title.size = 0.8)
 
@@ -581,7 +562,7 @@ map2 <- tm_shape(HCSA_oct_2021) +
 tmap_arrange(map1, map2, ncol = 2)
 ```
 
-### November 2022
+### November 2021
 
 ```{r}
 #| code-fold: true
@@ -605,7 +586,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_nov_2021) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of November 2021",
             main.title.size = 0.8)
 
@@ -644,7 +624,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_dec_2021) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of December 2021",
             main.title.size = 0.8)
 
@@ -683,7 +662,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_jan_2022) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of January 2022",
             main.title.size = 0.8)
 
@@ -722,7 +700,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_feb_2022) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of February 2022",
             main.title.size = 0.8)
 
@@ -761,7 +738,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_mar_2022) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of March 2022",
             main.title.size = 0.8)
 
@@ -800,7 +776,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_apr_2022) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of April 2022",
             main.title.size = 0.8)
 
@@ -839,7 +814,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_may_2022) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of May 2022",
             main.title.size = 0.8)
 
@@ -878,7 +852,6 @@ tmap_mode("plot")
 map1 <- tm_shape(HCSA_june_2022) +
   tm_fill("gi_star", palette = "-RdBu") + 
   tm_borders(alpha = 0.5) +
-  tm_view(set.zoom.limits = c(6,8)) +
   tm_layout(main.title = "Gi* of June 2022",
             main.title.size = 0.8)
 
@@ -895,29 +868,39 @@ tmap_arrange(map1, map2, ncol = 2)
 
 ## Statistical Conclusion
 
+At the start of the year, the hot and cold spots were spreaded across the sub-districts. But overtime, the Gi\* value bottom half of Jakarta has been significantly more positive. More specifically areas such as Jagakarsa, Ciganjur and their neighbours have been a extremely significant positive cluster especially at the later half of the year. This means that these sub-districts contains the highest monthly vaccination rates as a cluster as compared to other sub-district areas.
+
+Kebon Melati has been a significant cold spot consistently throughout the year. Its neighbouring sub-districts are also visualised as cold spots throughout the year but is less significant than Kebon Melati itself. This means that Kebon Melati and its surrounding neighbours contains significantly lower monthly vaccination rates as a cluster as compared to other sub-district areas.
+
 # Emerging Hot Spot Analysis
 
 ## Mann-Kendall Test
 
-(using spatio-temporal local Gi\* values)
+To perform the Mann-Kendall test, a time series cube needs to be created first.
 
 ### Creating Time Series Cube
+
+Since the `spacetime()` function only accepts the location column of 2 datasets to be the same, I will update the `jkt` "KESA" column to "KELURAHAN" for standardisation using the `colnames()` function.
 
 ```{r}
 colnames(jkt)[3] <- "KELURAHAN"
 ```
 
-```{r}
+Next, using the `spacetime()` function, create a spacetime object with "KELURAHAN" as the location column and "dateMonth" as the time column.
+
+```{r, warning=TRUE}
 #vacc_data = vacc_data %>% drop_na(c("KODE KELURAHAN", "WILAYAH KOTA", "KECAMATAN"))
 #vacc_data_st <- spacetime(vacc_data, jkt, ".KELURAHAN", "dateMonth")
 vacc_data_st <- spacetime(
   .data = vacc_data, 
   .geometry = jkt, 
   .loc_col = "KELURAHAN", 
-  .time_col = "dateMonthNum")
+  .time_col = "dateMonth")
 ```
 
-```{r}
+There are missing values in the spacetime object. It will not be a spacetime cube due to the lack of rows. Using `complete_spacetime_cube()` function, create a completed spacetime cube `vacc_data_st_complete`.
+
+```{r, warning=TRUE}
 vacc_data_st_complete <- complete_spacetime_cube(vacc_data_st)
 ```
 
@@ -925,7 +908,11 @@ vacc_data_st_complete <- complete_spacetime_cube(vacc_data_st)
 is_spacetime_cube(vacc_data_st_complete)
 ```
 
+Now the spacetime cube is valid.
+
 ### Computing Spatial Weights
+
+Before implementing the Mann-Kendall test, we need the nb and wt which will be computed similarly to the method use in the previous sections.
 
 ```{r}
 vacc_st_nb <- vacc_data_st_complete %>%
@@ -945,11 +932,7 @@ head(vacc_st_nb)
 
 ### Computing Gi\*
 
-length(vacc_st_nb\$wt)
-
-```{r}
-
-```
+Next, I will calculate the Gi\* value and add it into a new dataframe called `gi_stars`. Since there are missing values in the `monthly_vacc_rate`, I will drop the empty rows before calulating the Gi\* values with the same method as the previous section.
 
 ```{r}
 vacc_st_nb <- vacc_st_nb %>% drop_na("monthly_vacc_rate")
@@ -961,6 +944,8 @@ gi_stars <- vacc_st_nb %>%
 
 ### Mann-Kendall Test
 
+To perform the Mann-Kendall test, I will call the `MannKendall()` function on the newly calculated Gi\* values into a list `mk`. I will then add this computed results into a new dataframe `ehsa`.
+
 ```{r}
 ehsa <- gi_stars %>%
   group_by(KELURAHAN) %>%
@@ -971,7 +956,7 @@ ehsa <- gi_stars %>%
 
 ## Temporal Trends
 
-As mentioned in Section 3.3 Spatial Patterns, a few sub-districts with significant changes are: Ciganjur, \_\_ and \_\_. Out of curiousity, I will be performing a temporal trend analysis on Ciganjur. For the remaining 2 sub-districts, I will be using the top 2 emerging sub-districts, where their p-values are the highest.
+As mentioned in Section 3.3 Spatial Patterns, a few sub-districts with significant changes are: Jagakarsa, Ciganjur, and Kebon Melati. Out of curiousity, I will first be performing a temporal trend analysis on Ciganjur. For the remaining 2 sub-districts, I will be using the top 2 emerging sub-districts, where their p-values are the highest.
 
 ### CIGANJUR
 
@@ -998,6 +983,8 @@ ehsa %>%
 Using the calculated Mann-Kendall test, the p-value (sl column) of the trend in monthly vaccination rate in Ciganjur is 0.00079 (2 s.f.), stating that this upward trend is extremely significant.
 
 ### Emerging Sub-districts
+
+To calculate the emerging sub-districts, use the `arrange()` function and arrange it via the p-value (sl) column and test statistics (tau) column.
 
 ```{r}
 emerging <- ehsa %>% 
@@ -1033,6 +1020,8 @@ ehsa %>%
   filter(KELURAHAN == "TUGU SELATAN")
 ```
 
+There is an overall significant upward trend from July 2021 to June 2022 with a slight decrease around the October 2021 period.
+
 ### Jelambar
 
 ```{r}
@@ -1048,23 +1037,18 @@ ggplot(data = jlb,
   ggtitle("Jelambar Temporal Trend")
 ```
 
+#### Significance and Conclusion
+
 ```{r}
-
-drsw <- gi_stars %>% 
-  filter(KELURAHAN == "DUREN SAWIT") |> 
-  select(KELURAHAN, dateMonth, gi_star)
-
-ggplot(data = drsw, 
-       aes(x = dateMonth, 
-           y = gi_star)) +
-  geom_line() +
-  theme_light() +
-  ggtitle("Duren Sawit Temporal Trend")
+ehsa %>% 
+  filter(KELURAHAN == "JELAMBAR")
 ```
+
+There is an overall significant upward trend from July 2021 to June 2022 with an exponential increase from August 2021 to January 2022.
 
 ## EHSA Map
 
-(only significant values)
+Lastly, I will run a emerging hotspot analysis using `emerging_hotspot_analysis()` function on the "monthly_vacc_rate" variable of the completed spacetime cube, running for 100 tests.
 
 ```{r}
 vacc_data_st_complete$monthly_vacc_rate[is.na(vacc_data_st_complete$monthly_vacc_rate)] <- 0
@@ -1076,23 +1060,41 @@ ehsa <- emerging_hotspot_analysis(
 )
 ```
 
+I will then combine the computed `ehsa` into the `jkt` shapefile using the `left_join()` function with columns "KELURAHAN" from `jkt` and "location" from `ehsa`.
+
 ```{r}
 jkt_ehsa <- jkt %>%
   left_join(ehsa, by = c("KELURAHAN" = "location" ))
 ```
 
+To plot out the significant emerging hotspot analysis results, I will filter out the results that have p-values lesser than 0.05 with the `filter()` function.
+
 ```{r}
 ehsa_sig <- jkt_ehsa  %>%
   filter(p_value < 0.05)
-tmap_mode("plot")
+tmap_mode("view")
 tm_shape(jkt_ehsa) +
   tm_polygons() +
   tm_borders(alpha = 0.5) +
+  tm_text("KELURAHAN", size = 0.7) +
 tm_shape(ehsa_sig) +
   tm_fill("classification") + 
-  tm_borders(alpha = 0.4)
+  tm_borders(alpha = 0.4) +
+  tm_view(set.zoom.limits = c(11,14))
 ```
 
 ## Spatial Patterns
 
+Majority of the sub-districts have a classification of oscillating hotspot. This aligns with the previous Local Gi\* maps with the bottom half being majority of the hotspot.
+
+Some notable sub-districts include:
+
+-   Petojo Utara: Persistent coldspot
+
+-   Pademangan Timur: Intensifying hotspot
+
+It is interesting how the areas I have mentioned to be significant earlier not remotely near the 2 sub-districts computed to be significant here.
+
 # Conclusion
+
+For each test, there were different sub-districts that I perceived or was computed to be significant. It was different for every single test which made me realise the importance of doing multiple tests to have a better understanding of the data I am handling.
