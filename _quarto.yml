@@ -17,6 +17,8 @@ website:
           text: Exercise 6
         - href: handson_ex/HE7/HE7.qmd
           text: Exercise 7
+        - href: handson_ex/HE8/HE8.qmd
+          text: Exercise 8
       - text: In-class Exercises
         menu: 
           - href: inclass_ex/ICE2/ice2.qmd

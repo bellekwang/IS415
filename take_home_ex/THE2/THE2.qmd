@@ -21,7 +21,7 @@ Understanding how Covid-19 vaccination rate is distributed around DKI Jakarta an
 ## Data
 
 | Data                                    | Format (Type)          | Description                                                                                                                    | Source                                                                                                             |
-|------------------|------------------|------------------|------------------|
+|-----------------------------------------|------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | Riwayat File Vaksinasi DKI Jakarta      | Excel (Aspatial)       | Details the daily number of vaccinations in Jakarta by person type and sub-district (Only the first day of each month is used) | [Riwatat File Vaksinasi DKI Jakarta](https://riwayat-file-vaksinasi-dki-jakarta-jakartagis.hub.arcgis.com/) (2022) |
 | DKI Jakarta Adminstration Boundary 2019 | Shapefile (Geospatial) | DKI Jakarta administrative boundaries                                                                                          | [Indonesia Geospasial](https://www.indonesia-geospasial.com/2020/04/download-shapefile-shp-batas-desa.html) (2019) |
 
