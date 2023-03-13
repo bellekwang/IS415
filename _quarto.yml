@@ -19,6 +19,12 @@ website:
           text: Exercise 7
         - href: handson_ex/HE8/HE8.qmd
           text: Exercise 8
+        - href: handson_ex/HE9/HE9.qmd
+          text: Exercise 9
+        - href: handson_ex/HE10/HE10.qmd
+          text: Exercise 10
+        - href: handson_ex/HE11/HE11.qmd
+          text: Exercise 11
       - text: In-class Exercises
         menu: 
           - href: inclass_ex/ICE2/ice2.qmd
@@ -37,6 +43,8 @@ website:
             text: Exercise 1
           - href: take_home_ex/THE2/THE2.qmd
             text: Exercise 2
+          - href: take_home_ex/THE3/THE3.qmd
+            text: Exercise 3
     right: 
       - href: index.qmd
         text: Home
