@@ -73,5 +73,20 @@
   },
   "inclass_ex/ICE9/ICE9.qmd": {
     "ICE9.html": "85c1a0a4"
+  },
+  "take_home_ex/THE3/THE3.qmd": {
+    "THE3.html": "d9cbd56a"
+  },
+  "take_home_ex/THE3/data/geospatial/boundary/MPSZ-2019.qmd": {
+    "MPSZ-2019.html": "8220d49e"
+  },
+  "handson_ex/HE10/HE10.qmd": {
+    "HE10.html": "a6e62e61"
+  },
+  "handson_ex/HE10/data/geospatial/ELDERCARE.qmd": {
+    "ELDERCARE.html": "8fe11ad6"
+  },
+  "handson_ex/HE10/data/geospatial/hexagons.qmd": {
+    "hexagons.html": "6acb7c5e"
   }
 }

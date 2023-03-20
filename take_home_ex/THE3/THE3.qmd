@@ -1,0 +1,122 @@
+---
+title: "Take-home Exercise 3"
+subtitle: "Predicting HDB Public Housing Resale Prices using Geographically Weighted Methods"
+date: "13 Mar 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: 
+  html:
+    toc: true
+    toc-depth: 4
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Context
+
+## Problem Statement
+
+## Data
+
+| Data                              | Format (Type)              | Description                                                                              | Source                                                                                     |
+|-----------------------------------|----------------------------|------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| HDB Resale Flat Prices            | csv (Aspatial)             | HDB Resale Flat Prices with property details from 1st January 2021 to 31st December 2022 | [Data.gov.sg](https://data.gov.sg/dataset/resale-flat-prices)                              |
+|                                   |                            |                                                                                          |                                                                                            |
+| Master Plan 2019 Subzone Boundary | Shapefile (Geospatial)     |                                                                                          | In-class Exercise 9                                                                        |
+| SPF Establishments                | Spatial Point              |                                                                                          |                                                                                            |
+| Bus Stops                         | Spatial Point (Geospatial) |                                                                                          | [Land Transport DATAMALL](https://datamall.lta.gov.sg) (Feb 2023)                          |
+| Train Stations                    | csv (Geospatial)           |                                                                                          | [data.world](https://data.world/hxchua/train-stations-in-singapore) (Hui Xiang Xhua, 2020) |
+
+# Setting Up
+
+## Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, tidyverse, onemapsgapi, rjson, tmap)
+```
+
+-   
+
+## Importing Data
+
+### onemapsg API
+
+#### sdfiosd
+
+With reference to the [onemapsg API tutorial](https://is415-msty.netlify.app/posts/2021-10-25-take-home-exercise-3/?panelset=base&panelset6=glimpse%28%29#using-the-onemapsg-api) (Megan), I first looked through all the themes the API had using the `search_themes()` function.
+
+```{r}
+#| eval: false
+all_themes <- search_themes(token)
+all_themes
+```
+
+Looking through all the themes available, I've decided to extract the following themes that may affect the pricing of HDB Resale Prices:
+
+1.  Childcares
+2.  Hawker Centers
+3.  Parks
+4.  Pre-schools
+5.  Singapore Police Force Establishments
+6.  Cemeteries
+7.  Community Clubs
+8.  Eldercare Facilities
+
+### Bus Stops
+
+For the bus stop spatial points,
+
+```{r}
+busstop_sf <- st_read(
+  dsn = "data/geospatial/BusStop_Feb2023", layer = "BusStop"
+)
+```
+
+### Train Stations
+
+I was going to use the MRT station dataset provided by DataMall LTA but they had invalid geometries, thus I am using another dataset I found on data.world platform.
+
+```{r}
+mrtstation <- read_csv("data/geospatial/mrtstation.csv")
+```
+
+I will first remove all the unnecessary columns and keeping only the station names and coordinates.
+
+```{r}
+mrtstation <- select(mrtstation, c('STN_NAME', 'Latitude', 'Longitude'))
+```
+
+This csv file is missing 11 MRT stations from the new [Thomson-East Coast Line](https://www.sgtrains.com/network-tel.html "Updated TE Line Details"): TE4 Springleaf, TE5 Lentor, TE6 Mayflower, TE7 Bright Hill, TE8 Upper Thomson, TE12 Napier, TE13 Orchard Boulevard, TE15 Great World, TE16 Havelock, TE18 Maxwell, TE29 Shenton Way. I will be adding the 11 MRT stations and their [coordinates](https://en.wikipedia.org/wiki/Thomson%E2%80%93East_Coast_MRT_line "Coordinates are indicated on each MRT's wiki page.") manually.
+
+```{r}
+mrtstations_to_add <- data.frame(
+  STN_NAME=c("SPRINGLEAF MRT STATION", "LENTOR MRT STATION",
+             "MAYFLOWER MRT STATION", "BRIGHT HILL  MRT STATION",
+             "UPPER THOMSON  MRT STATION", "NAPIER MRT STATION",
+             "ORCHARD BOULEVARD MRT STATION", "GREAT WORLD MRT STATION",
+             "HAVELOCK MRT STATION", "MAXWELL MRT STATION",
+             "SHENTON WAY MRT STATION"),
+  Latitude=c(1.3978, 1.3846, 1.3724, 1.36384, 1.3542, 1.3069, 1.3024,
+             1.295, 1.2877, 1.2803, 1.2775),
+  Longitude=c(103.8182, 103.8368, 103.8372, 103.834748, 103.8332,
+              103.8191, 103.8251, 103.833333, 103.8337, 103.844, 103.8507)
+)
+```
+
+Combine the `mrtstations_to_add` via `rbind()` function.
+
+```{r}
+mrtstation <- rbind(mrtstation, mrtstations_to_add)
+```
+
+Some MRT stations coexist in multiple lines (e.g. Bishan at the Northeast and Circle Line). They however have different coordinates so I will not be removing them from the data frame.
+
+Lastly, transform the data frame into a spatial point data frame using the `st_as_sf()` function.
+
+```{r}
+mrtstation_sf <- st_as_sf(mrtstation, coords = c("Longitude", "Latitude"))
+mrtstation_sf
+```

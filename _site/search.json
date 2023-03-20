@@ -670,5 +670,110 @@
     "title": "In Class Exercise 9",
     "section": "2.4 Preparing Test Data",
     "text": "2.4 Preparing Test Data\n\ntest_data <- cbind(test_data, coords_test) %>%\n  st_drop_geometry()"
+  },
+  {
+    "objectID": "take_home_ex/THE3/THE3.html",
+    "href": "take_home_ex/THE3/THE3.html",
+    "title": "Take-home Exercise 3",
+    "section": "",
+    "text": "Data\nFormat (Type)\nDescription\nSource\n\n\n\n\nHDB Resale Flat Prices\ncsv (Aspatial)\nHDB Resale Flat Prices with property details from 1st January 2021 to 31st December 2022\nData.gov.sg\n\n\n\n\n\n\n\n\nMaster Plan 2019 Subzone Boundary\nShapefile (Geospatial)\n\nIn-class Exercise 9\n\n\nSPF Establishments\nSpatial Point\n\n\n\n\nBus Stops\nSpatial Point (Geospatial)\n\nLand Transport DATAMALL (Feb 2023)\n\n\nTrain Stations\ncsv (Geospatial)\n\ndata.world (Hui Xiang Xhua, 2020)"
+  },
+  {
+    "objectID": "take_home_ex/THE3/THE3.html#installing-and-loading-packages",
+    "href": "take_home_ex/THE3/THE3.html#installing-and-loading-packages",
+    "title": "Take-home Exercise 3",
+    "section": "2.1 Installing and Loading Packages",
+    "text": "2.1 Installing and Loading Packages\n\npacman::p_load(sf, tidyverse, onemapsgapi, rjson, tmap)"
+  },
+  {
+    "objectID": "take_home_ex/THE3/THE3.html#importing-data",
+    "href": "take_home_ex/THE3/THE3.html#importing-data",
+    "title": "Take-home Exercise 3",
+    "section": "2.2 Importing Data",
+    "text": "2.2 Importing Data\n\n2.2.1 onemapsg API\n\n2.2.1.1 sdfiosd\nWith reference to the onemapsg API tutorial (Megan), I first looked through all the themes the API had using the search_themes() function.\n\nall_themes <- search_themes(token)\nall_themes\n\nLooking through all the themes available, I’ve decided to extract the following themes that may affect the pricing of HDB Resale Prices:\n\nChildcares\nHawker Centers\nParks\nPre-schools\nSingapore Police Force Establishments\nCemeteries\nCommunity Clubs\nEldercare Facilities\n\n\n\n\n2.2.2 Bus Stops\nFor the bus stop spatial points,\n\nbusstop_sf <- st_read(\n  dsn = \"data/geospatial/BusStop_Feb2023\", layer = \"BusStop\"\n)\n\nReading layer `BusStop' from data source \n  `D:\\bellekwang\\IS415\\take_home_ex\\THE3\\data\\geospatial\\BusStop_Feb2023' \n  using driver `ESRI Shapefile'\nSimple feature collection with 5159 features and 3 fields\nGeometry type: POINT\nDimension:     XY\nBounding box:  xmin: 3970.122 ymin: 26482.1 xmax: 48284.56 ymax: 52983.82\nProjected CRS: SVY21\n\n\n\n\n2.2.3 Train Stations\nI was going to use the MRT station dataset provided by DataMall LTA but they had invalid geometries, thus I am using another dataset I found on data.world platform.\n\nmrtstation <- read_csv(\"data/geospatial/mrtstation.csv\")\n\nI will first remove all the unnecessary columns and keeping only the station names and coordinates.\n\nmrtstation <- select(mrtstation, c('STN_NAME', 'Latitude', 'Longitude'))\n\nThis csv file is missing 11 MRT stations from the new Thomson-East Coast Line: TE4 Springleaf, TE5 Lentor, TE6 Mayflower, TE7 Bright Hill, TE8 Upper Thomson, TE12 Napier, TE13 Orchard Boulevard, TE15 Great World, TE16 Havelock, TE18 Maxwell, TE29 Shenton Way. I will be adding the 11 MRT stations and their coordinates manually.\n\nmrtstations_to_add <- data.frame(\n  STN_NAME=c(\"SPRINGLEAF MRT STATION\", \"LENTOR MRT STATION\",\n             \"MAYFLOWER MRT STATION\", \"BRIGHT HILL  MRT STATION\",\n             \"UPPER THOMSON  MRT STATION\", \"NAPIER MRT STATION\",\n             \"ORCHARD BOULEVARD MRT STATION\", \"GREAT WORLD MRT STATION\",\n             \"HAVELOCK MRT STATION\", \"MAXWELL MRT STATION\",\n             \"SHENTON WAY MRT STATION\"),\n  Latitude=c(1.3978, 1.3846, 1.3724, 1.36384, 1.3542, 1.3069, 1.3024,\n             1.295, 1.2877, 1.2803, 1.2775),\n  Longitude=c(103.8182, 103.8368, 103.8372, 103.834748, 103.8332,\n              103.8191, 103.8251, 103.833333, 103.8337, 103.844, 103.8507)\n)\n\nCombine the mrtstations_to_add via rbind() function.\n\nmrtstation <- rbind(mrtstation, mrtstations_to_add)\n\nSome MRT stations coexist in multiple lines (e.g. Bishan at the Northeast and Circle Line). They however have different coordinates so I will not be removing them from the data frame.\nLastly, transform the data frame into a spatial point data frame using the st_as_sf() function.\n\nmrtstation_sf <- st_as_sf(mrtstation, coords = c(\"Longitude\", \"Latitude\"))\nmrtstation_sf\n\nSimple feature collection with 200 features and 1 field\nGeometry type: POINT\nDimension:     XY\nBounding box:  xmin: 103.6369 ymin: 1.265473 xmax: 103.9883 ymax: 1.449051\nCRS:           NA\n# A tibble: 200 × 2\n   STN_NAME                            geometry\n   <chr>                                <POINT>\n 1 ADMIRALTY MRT STATION     (103.801 1.440585)\n 2 ALJUNIED MRT STATION     (103.8829 1.316433)\n 3 ANG MO KIO MRT STATION   (103.8496 1.369933)\n 4 BAKAU LRT STATION        (103.9054 1.388093)\n 5 BANGKIT LRT STATION      (103.7727 1.380018)\n 6 BARTLEY MRT STATION      (103.8797 1.342828)\n 7 BAYFRONT MRT STATION     (103.8591 1.281874)\n 8 BAYFRONT MRT STATION     (103.8591 1.281874)\n 9 BEAUTY WORLD MRT STATION (103.7758 1.341223)\n10 BEDOK MRT STATION           (103.93 1.32398)\n# … with 190 more rows"
+  },
+  {
+    "objectID": "take_home_ex/THE3/data/geospatial/boundary/MPSZ-2019.html",
+    "href": "take_home_ex/THE3/data/geospatial/boundary/MPSZ-2019.html",
+    "title": "IS415",
+    "section": "",
+    "text": "<!DOCTYPE qgis PUBLIC ‘http://mrcc.com/qgis.dtd’ ‘SYSTEM’>     dataset\n\n\n        0 0     false"
+  },
+  {
+    "objectID": "handson_ex/HE10/data/geospatial/ELDERCARE.html",
+    "href": "handson_ex/HE10/data/geospatial/ELDERCARE.html",
+    "title": "IS415",
+    "section": "",
+    "text": "<!DOCTYPE qgis PUBLIC ‘http://mrcc.com/qgis.dtd’ ‘SYSTEM’>  ELDERCARE  ENG dataset\n\nELDERCARE\n\n                 0 0     false"
+  },
+  {
+    "objectID": "handson_ex/HE10/data/geospatial/hexagons.html",
+    "href": "handson_ex/HE10/data/geospatial/hexagons.html",
+    "title": "IS415",
+    "section": "",
+    "text": "<!DOCTYPE qgis PUBLIC ‘http://mrcc.com/qgis.dtd’ ‘SYSTEM’>     dataset\n\n\n                 0 0     false"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html",
+    "href": "handson_ex/HE10/HE10.html",
+    "title": "Hands-on Exercise 10",
+    "section": "",
+    "text": "pacman::p_load(tmap, SpatialAcc, sf, \n               ggstatsplot, reshape2,\n               tidyverse)\n\n\n\n\n\n\nmpsz <- st_read(\n  dsn = \"data/geospatial\",\n  layer = \"MP14_SUBZONE_NO_SEA_PL\"\n)\n\nReading layer `MP14_SUBZONE_NO_SEA_PL' from data source \n  `D:\\bellekwang\\IS415\\handson_ex\\HE10\\data\\geospatial' using driver `ESRI Shapefile'\nSimple feature collection with 323 features and 15 fields\nGeometry type: MULTIPOLYGON\nDimension:     XY\nBounding box:  xmin: 2667.538 ymin: 15748.72 xmax: 56396.44 ymax: 50256.33\nProjected CRS: SVY21\n\n\n\nhexagons <- st_read(\n  dsn = \"data/geospatial\",\n  layer = \"hexagons\"\n)\n\nReading layer `hexagons' from data source \n  `D:\\bellekwang\\IS415\\handson_ex\\HE10\\data\\geospatial' using driver `ESRI Shapefile'\nSimple feature collection with 3125 features and 6 fields\nGeometry type: POLYGON\nDimension:     XY\nBounding box:  xmin: 2667.538 ymin: 21506.33 xmax: 50010.26 ymax: 50256.33\nProjected CRS: SVY21 / Singapore TM\n\n\n\neldercare <- st_read(\n  dsn = \"data/geospatial\",\n  layer = \"ELDERCARE\"\n)\n\nReading layer `ELDERCARE' from data source \n  `D:\\bellekwang\\IS415\\handson_ex\\HE10\\data\\geospatial' using driver `ESRI Shapefile'\nSimple feature collection with 120 features and 19 fields\nGeometry type: POINT\nDimension:     XY\nBounding box:  xmin: 14481.92 ymin: 28218.43 xmax: 41665.14 ymax: 46804.9\nProjected CRS: SVY21 / Singapore TM\n\n\n\n\n\n\nmpsz <- st_transform(mpsz, 3414)\neldercare <- st_transform(eldercare, 3414)\nhexagons <- st_transform(hexagons, 3414)\n\n\n\n\n\neldercare <- eldercare %>%\n  select(fid, ADDRESSPOS) %>%\n  mutate(capacity = 100)\n\n\nhexagons <- hexagons %>%\n  select(fid) %>%\n  mutate(demand = 100)\n\n\n\n\n\n\n\n\nODMatrix <- read_csv(\"data/aspatial/OD_Matrix.csv\", skip = 0)\n\nTransform O-D matrix from thin to fat format.\n\ndistmat <- ODMatrix %>%\n  select(origin_id, destination_id, total_cost) %>%\n  spread(destination_id, total_cost)%>%\n  select(c(-c('origin_id')))\n\nConvert unit f measurement from meter to kilometer.\n\ndistmat_km <- as.matrix(distmat/1000)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#computing-hansens-accessibility",
+    "href": "handson_ex/HE10/HE10.html#computing-hansens-accessibility",
+    "title": "Hands-on Exercise 10",
+    "section": "2.1 Computing Hansen’s Accessibility",
+    "text": "2.1 Computing Hansen’s Accessibility\n\nacc_Hansen <- data.frame(ac(hexagons$demand,\n                            eldercare$capacity,\n                            distmat_km, \n                            #d0 = 50,\n                            power = 2, \n                            family = \"Hansen\"))\n\nRename the default name to accHansen\n\ncolnames(acc_Hansen) <- \"accHansen\"\n\nConvert data table into tibble format\n\nacc_Hansen <- as_tibble(acc_Hansen)\n\nCombine tibble data frame with hexagon simple feature data frame\n\nhexagon_Hansen <- bind_cols(hexagons, acc_Hansen)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#visualising-hansens-accessibility",
+    "href": "handson_ex/HE10/HE10.html#visualising-hansens-accessibility",
+    "title": "Hands-on Exercise 10",
+    "section": "2.2 Visualising Hansen’s Accessibility",
+    "text": "2.2 Visualising Hansen’s Accessibility\n\n2.2.1 Extracting Map Extend\nExtract extend of hexagons:\n\nmapex <- st_bbox(hexagons)\n\n\ntmap_mode(\"plot\")\ntm_shape(hexagon_Hansen,\n         bbox = mapex) + \n  tm_fill(col = \"accHansen\",\n          n = 10,\n          style = \"quantile\",\n          border.col = \"black\",\n          border.lwd = 1) +\ntm_shape(eldercare) +\n  tm_symbols(size = 0.1) +\n  tm_layout(main.title = \"Accessibility to eldercare: Hansen method\",\n            main.title.position = \"center\",\n            main.title.size = 2,\n            legend.outside = FALSE,\n            legend.height = 0.45, \n            legend.width = 3.0,\n            legend.format = list(digits = 6),\n            legend.position = c(\"right\", \"top\"),\n            frame = TRUE) +\n  tm_compass(type=\"8star\", size = 2) +\n  tm_scale_bar(width = 0.15) +\n  tm_grid(lwd = 0.1, alpha = 0.5)\n\n\n\n\n\n\n2.2.2 Statistical Graphic Visualisation\n\nhexagon_Hansen <- st_join(hexagon_Hansen, mpsz, \n                          join = st_intersects)\n\nPlot the distribution\n\nggplot(data=hexagon_Hansen, \n       aes(y = log(accHansen), \n           x= REGION_N)) +\n  geom_boxplot() +\n  geom_point(stat=\"summary\", \n             fun.y=\"mean\", \n             colour =\"red\", \n             size=2)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#computing-kd2sfcas-accessibility",
+    "href": "handson_ex/HE10/HE10.html#computing-kd2sfcas-accessibility",
+    "title": "Hands-on Exercise 10",
+    "section": "3.1 Computing KD2SFCA’s Accessibility",
+    "text": "3.1 Computing KD2SFCA’s Accessibility\n\nacc_KD2SFCA <- data.frame(ac(hexagons$demand,\n                            eldercare$capacity,\n                            distmat_km, \n                            d0 = 50,\n                            power = 2, \n                            family = \"KD2SFCA\"))\n\ncolnames(acc_KD2SFCA) <- \"accKD2SFCA\"\nacc_KD2SFCA <- as_tibble(acc_KD2SFCA)\nhexagon_KD2SFCA <- bind_cols(hexagons, acc_KD2SFCA)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#visualising-kd2sfcas-accessibility",
+    "href": "handson_ex/HE10/HE10.html#visualising-kd2sfcas-accessibility",
+    "title": "Hands-on Exercise 10",
+    "section": "3.2 Visualising KD2SFCA’s Accessibility",
+    "text": "3.2 Visualising KD2SFCA’s Accessibility\n\ntmap_mode(\"plot\")\ntm_shape(hexagon_KD2SFCA,\n         bbox = mapex) + \n  tm_fill(col = \"accKD2SFCA\",\n          n = 10,\n          style = \"quantile\",\n          border.col = \"black\",\n          border.lwd = 1) +\ntm_shape(eldercare) +\n  tm_symbols(size = 0.1) +\n  tm_layout(main.title = \"Accessibility to eldercare: KD2SFCA method\",\n            main.title.position = \"center\",\n            main.title.size = 2,\n            legend.outside = FALSE,\n            legend.height = 0.45, \n            legend.width = 3.0,\n            legend.format = list(digits = 6),\n            legend.position = c(\"right\", \"top\"),\n            frame = TRUE) +\n  tm_compass(type=\"8star\", size = 2) +\n  tm_scale_bar(width = 0.15) +\n  tm_grid(lwd = 0.1, alpha = 0.5)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#statistical-graphic-visualisation-1",
+    "href": "handson_ex/HE10/HE10.html#statistical-graphic-visualisation-1",
+    "title": "Hands-on Exercise 10",
+    "section": "3.3 Statistical Graphic Visualisation",
+    "text": "3.3 Statistical Graphic Visualisation\n\nhexagon_KD2SFCA <- st_join(hexagon_KD2SFCA, mpsz, \n                          join = st_intersects)\n\nPlot the distribution\n\nggplot(data=hexagon_KD2SFCA, \n       aes(y = accKD2SFCA, \n           x= REGION_N)) +\n  geom_boxplot() +\n  geom_point(stat=\"summary\", \n             fun.y=\"mean\", \n             colour =\"red\", \n             size=2)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#computing-sam-accessibility",
+    "href": "handson_ex/HE10/HE10.html#computing-sam-accessibility",
+    "title": "Hands-on Exercise 10",
+    "section": "4.1 Computing SAM Accessibility",
+    "text": "4.1 Computing SAM Accessibility\n\nacc_SAM <- data.frame(ac(hexagons$demand,\n                         eldercare$capacity,\n                         distmat_km, \n                         d0 = 50,\n                         power = 2, \n                         family = \"SAM\"))\n\ncolnames(acc_SAM) <- \"accSAM\"\nacc_SAM <- as_tibble(acc_SAM)\nhexagon_SAM <- bind_cols(hexagons, acc_SAM)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#visualising-sams-accessibility",
+    "href": "handson_ex/HE10/HE10.html#visualising-sams-accessibility",
+    "title": "Hands-on Exercise 10",
+    "section": "4.2 Visualising SAM’s Accessibility",
+    "text": "4.2 Visualising SAM’s Accessibility\n\ntmap_mode(\"plot\")\ntm_shape(hexagon_SAM,\n         bbox = mapex) + \n  tm_fill(col = \"accSAM\",\n          n = 10,\n          style = \"quantile\",\n          border.col = \"black\",\n          border.lwd = 1) +\ntm_shape(eldercare) +\n  tm_symbols(size = 0.1) +\n  tm_layout(main.title = \"Accessibility to eldercare: SAM method\",\n            main.title.position = \"center\",\n            main.title.size = 2,\n            legend.outside = FALSE,\n            legend.height = 0.45, \n            legend.width = 3.0,\n            legend.format = list(digits = 3),\n            legend.position = c(\"right\", \"top\"),\n            frame = TRUE) +\n  tm_compass(type=\"8star\", size = 2) +\n  tm_scale_bar(width = 0.15) +\n  tm_grid(lwd = 0.1, alpha = 0.5)"
+  },
+  {
+    "objectID": "handson_ex/HE10/HE10.html#statistical-graphic-visualisation-2",
+    "href": "handson_ex/HE10/HE10.html#statistical-graphic-visualisation-2",
+    "title": "Hands-on Exercise 10",
+    "section": "4.3 Statistical Graphic Visualisation",
+    "text": "4.3 Statistical Graphic Visualisation\n\nhexagon_SAM <- st_join(hexagon_SAM, mpsz, \n                       join = st_intersects)\n\n\nggplot(data=hexagon_SAM, \n       aes(y = accSAM, \n           x= REGION_N)) +\n  geom_boxplot() +\n  geom_point(stat=\"summary\", \n             fun.y=\"mean\", \n             colour =\"red\", \n             size=2)"
   }
 ]
