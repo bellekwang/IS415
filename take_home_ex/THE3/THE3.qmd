@@ -19,32 +19,88 @@ editor: visual
 
 ## Problem Statement
 
+To use factors affecting HDB Resale Flat Prices for 3-room flats from 1st January 2021 to 31st December 2022 to build 2 predictive models (using conventional OLS method and GWR method).
+
+Then using the models created to predict the resale prices from January to February 2023.
+
+Lastly to evaluate and compare the performance between the models.
+
 ## Data
 
-| Data                              | Format (Type)              | Description                                                                              | Source                                                                                     |
-|-----------------------------------|----------------------------|------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| HDB Resale Flat Prices            | csv (Aspatial)             | HDB Resale Flat Prices with property details from 1st January 2021 to 31st December 2022 | [Data.gov.sg](https://data.gov.sg/dataset/resale-flat-prices)                              |
-|                                   |                            |                                                                                          |                                                                                            |
-| Master Plan 2019 Subzone Boundary | Shapefile (Geospatial)     |                                                                                          | In-class Exercise 9                                                                        |
-| SPF Establishments                | Spatial Point              |                                                                                          |                                                                                            |
-| Bus Stops                         | Spatial Point (Geospatial) |                                                                                          | [Land Transport DATAMALL](https://datamall.lta.gov.sg) (Feb 2023)                          |
-| Train Stations                    | csv (Geospatial)           |                                                                                          | [data.world](https://data.world/hxchua/train-stations-in-singapore) (Hui Xiang Xhua, 2020) |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Data                              | Format (Type)                           | Description                                           | Source                                                                                            |
++===================================+=========================================+=======================================================+===================================================================================================+
+| Master Plan 2014 Subzone Boundary | `.shp`\                                 | Singapore Boundary Shapefile                          | In-class Exercise 9                                                                               |
+|                                   | Spatial polygon data frame (Geospatial) |                                                       |                                                                                                   |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| HDB Resale Flat Prices            | `.csv`                                  | HDB Resale Flat Prices with property details          | [Data.gov.sg](https://data.gov.sg/dataset/resale-flat-prices)                                     |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Childcare                         | Spatial point data frame (Geospatial)   | Points of all the *childcare centers* in Singapore    | [onemapsg API](www.onemap.gov.sg)                                                                 |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Pre-schools                       | Spatial point data frame (Geospatial)   | Points of all the *pre-schools* in Singapore          | onemapsg API                                                                                      |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Kindergartens                     | Spatial point data frame (Geospatial)   | Points of all the *kindergartens* in Singapore        | onemapsg API                                                                                      |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Primary Schools                   | Spatial point data frame (Geospatial)   | Points of all the *primary schools* in Singapore      | [data.world](https://data.world/hxchua/primary-schools-in-singapore) (Hui Xiang Chua, 2017)       |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Parks                             | Spatial point data frame (Geospatial)   | Points of all the *parks* in Singapore                | onemapsg API                                                                                      |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Cemeteries                        | Spatial point data frame (Geospatial)   | Points of all the *active cemeteries* in Singapore    | onemapsg API                                                                                      |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Eldercare Facilities              | Spatial point data frame (Geospatial)   | Points of all the *eldercare facilities* in Singapore | onemapsg API                                                                                      |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| CBD                               | Spatial point data frame (Geospatial)   | Point of *downtown core*                              | [Senior's Submission](is415-msty.netlify.app/posts/2021-10-25-take-home-exercise-3) (Megan)       |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Shopping Malls                    | Spatial point data frame (Geospatial)   | Points of all the *shopping malls* in Singapore       | Self-sourced\                                                                                     |
+|                                   |                                         |                                                       | (Information from [Wikipedia](https://en.wikipedia.org/wiki/List_of_shopping_malls_in_Singapore)) |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| Bus Stops                         | `.csv` (Geospatial)                     | Location of all the *bus stops* in Singapore          | [Land Transport DATAMALL](https://datamall.lta.gov.sg) (Feb 2023)                                 |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
+| MRT Stations                      | `.csv` (Geospatial)                     | Location of all the *MRT stations* in Singapore       | [data.world](https://data.world/hxchua/train-stations-in-singapore) (Hui Xiang Xhua, 2020)        |
++-----------------------------------+-----------------------------------------+-------------------------------------------------------+---------------------------------------------------------------------------------------------------+
 
-# Setting Up
-
-## Installing and Loading Packages
+## Packages
 
 ```{r}
-pacman::p_load(sf, tidyverse, onemapsgapi, rjson, tmap)
+pacman::p_load(sf, tidyverse, onemapsgapi, tmap, units, Rfast,
+               olsrr, corrplot, ggpubr, spdep, GWmodel, gtsummary, jsonlite, SpatialML, ranger)
 ```
 
--   
+-   `sf`: to handle spatial data
 
-## Importing Data
+-   `tidyverse`: to handle attribute data
 
-### onemapsg API
+-   `onemapsgapi`: to extract geospatial data sets
 
-#### sdfiosd
+-   `tmap`: to visualise geospatial data via choropleth mapping
+
+-   `units`, `Rfast`: to calculate distances and facility counts
+
+-   `olsrr`: to build OLS and perform diagnostic tests
+
+-   `corrplot`: to plot for multivariate data visualisation and analysis (check for correlation between variables)
+
+-   `ggpubr`: to plot and visualise graphs (for EDA)
+
+-   `spdep`: to create spatial weight matrix objects
+
+-   `GWmodel`: to calibrate geographical weighted family of models
+
+-   `gtsummary`: to create elegant tables for model evaluation
+
+# Importing and Wrangling Geospatial Data
+
+## Master Plan 2019 Subzone Boundary
+
+First, import the shapefile using the `st_read()` function.
+
+```{r}
+mpsz <- st_read(
+  dsn = "data/geospatial/boundary", layer = "MPSZ-2019"
+)
+```
+
+## onemapsg API
 
 With reference to the [onemapsg API tutorial](https://is415-msty.netlify.app/posts/2021-10-25-take-home-exercise-3/?panelset=base&panelset6=glimpse%28%29#using-the-onemapsg-api) (Megan), I first looked through all the themes the API had using the `search_themes()` function.
 
@@ -57,25 +113,167 @@ all_themes
 Looking through all the themes available, I've decided to extract the following themes that may affect the pricing of HDB Resale Prices:
 
 1.  Childcares
-2.  Hawker Centers
-3.  Parks
-4.  Pre-schools
-5.  Singapore Police Force Establishments
+2.  Pre-schools
+3.  Kindergartens
+4.  Hawker Centers
+5.  Parks
 6.  Cemeteries
-7.  Community Clubs
-8.  Eldercare Facilities
+7.  Eldercare Facilities
 
-### Bus Stops
+To extract the data, I will repeat the code below for each theme.
 
-For the bus stop spatial points,
+First, I call the api using the `get_theme()` function, then create it as a simple feature data frame using the `st_as_sf()` function. I will only be keeping the necessary columns: `NAME` and `geometry`.
 
 ```{r}
-busstop_sf <- st_read(
-  dsn = "data/geospatial/BusStop_Feb2023", layer = "BusStop"
+#| eval: false
+childcare_tibble <- get_theme(token, "childcare")
+childcare_sf <- st_as_sf(childcare_tibble, coords=c("Lng", "Lat"), crs = 4326)
+childcare_sf <- select(childcare_sf, c('NAME', 'geometry'))
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Hawker Centers"
+hawker_tibble <- get_theme(token, "hawkercentre_new")
+hawker_sf <- st_as_sf(hawker_tibble, coords=c("Lng", "Lat"), crs = 4326)
+hawker_sf <- select(hawker_sf, c('NAME', 'geometry'))
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Parks"
+parks_tibble <- get_theme(token, "nationalparks")
+parks_sf <- st_as_sf(parks_tibble, coords=c("Lng", "Lat"), crs = 4326)
+parks_sf <- select(parks_sf, c('NAME', 'geometry'))
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Preschools"
+preschool_tibble <- get_theme(token, "preschools_location")
+preschl_sf <- st_as_sf(preschool_tibble, coords=c("Lng", "Lat"), crs = 4326)
+preschl_sf <- select(preschl_sf, c('NAME', 'geometry'))
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Cemeteries"
+cemetry_tibble <- get_theme(token, "activecemeteries")
+cemetry_sf <- st_as_sf(cemetry_tibble, coords=c("Lng", "Lat"), crs = 4326)
+cemetry_sf <- select(cemetry_sf, c('NAME', 'geometry'))
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Eldercare Facilities"
+elderly_tibble <- get_theme(token, "eldercare")
+eldercare_sf <- st_as_sf(elderly_tibble, coords=c("Lng", "Lat"), crs = 4326)
+eldercare_sf <- select(eldercare_sf, c('NAME', 'geometry'))
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+#| code-summary: "Kindergarten"
+kindergartens_tibble <- get_theme(token, "kindergartens")
+kindergartens_sf <- st_as_sf(kindergartens_tibble, coords=c("Lng", "Lat"), crs = 4326)
+kindergartens_sf <- select(kindergartens_sf, c('NAME', 'geometry'))
+```
+
+## Primary Schools
+
+```{r}
+prischl <- read_csv("data/geospatial/prischl/primaryschoolsg.csv")
+prischl_sf <-st_as_sf(prischl, coords=c("longitude", "latitude"), crs = 4326)
+prischl_sf <- select(prischl_sf, c('name', 'geometry'))
+```
+
+## CBD Location
+
+With reference to senior's submission (Megan), create a data frame with the coordinates of CBD (Downtown Core).
+
+```{r}
+lat <- 1.287953
+lng <- 103.851784
+
+cbd_sf <- data.frame(lat, lng) %>%
+  st_as_sf(coords = c("lng", "lat"), crs=4326) %>%
+  st_transform(crs=3414)
+```
+
+## Shopping Malls
+
+Since there are no readily available and updated data set on all the shopping malls in Singapore, I gathered a list of all the malls as shown here.
+
+```{r}
+mall_name = c('100 AM', '313@Somerset', 'Aperia', 'Balestier Hill Shopping Centre', 'Bugis Cube', 'Bugis Junction', 'Bugis+', 'Capitol Piazza', 'Cathay Cineleisure Orchard', 'The Centrepoint', 'City Square Mall', 'CityLink Mall', 'Duo', 'Far East Plaza', 'Funan', 'Great World City', 'HDB Hub', 'ION Orchard', 'Junction 8', 'Knightsbridge', 'Liat Towers', 'Lucky Plaza', 'Marina Bay Sands', 'The Shoppes at Marina Bay Sands', 'Marina Bay Link Mall', 'Marina Square', 'Millenia Walk', 'Ngee Ann City', 'Orchard Central', 'Orchard Gateway', 'Orchard Plaza', 'Midpoint Orchard', 'Palais Renaissance', "People's Park Centre", "People's Park Complex", 'Plaza Singapura', 'Raffles City', 'Scotts Square', 'Sim Lim Square', 'Singapore Shopping Centre', 'The South Beach', 'Square 2', 'Sunshine Plaza', 'Suntec City', 'Tanglin Mall', 'Tanjong Pagar Centre', 'Tekka Centre', 'The Adelphi', 'The Paragon', 'Tiong Bahru Plaza', 'The Poiz', 'Thomson Plaza', 'United Square', 'Thomson V', 'Velocity@Novena Square', 'Wheelock Place', 'Wisma Atria', 'Zhongshan Mall', 'i12 Katong', 'Parkway Parade', 'Paya Lebar Square', 'Paya Lebar Quarter', 'Roxy Square', 'Singpost Centre', 'Tampines 1', 'Tampines Mall', 'White Sands', 'City Plaza', 'Elias Mall', 'Loyang Point', 'Bedok Mall', 'Century Square', 'Our Tampines Hub', 'Changi City Point', 'Downtown East', 'Djitsun Mall Bedok', 'Eastpoint Mall', 'Jewel Changi Airport', 'KINEX', 'Katong Shopping Centre', 'Katong Square', 'Kallang Wave Mall', 'Leisure Park Kallang', 'Waterway Point', 'Compass One', 'Hougang Mall', '888 Plaza', 'Admiralty Place', 'AMK Hub', 'Canberra Plaza', 'Causeway Point', 'Woodlands Civic Centre', 'Broadway Plaza', 'Djitsun Mall', 'Jubilee Square', 'Junction 8', 'Junction Nine', 'Marsiling Mall', 'Northpoint City', 'Sembawang Shopping Centre', 'Sun Plaza', 'Vista Point', 'Wisteria Mall', 'Woodlands Mart', 'Woodlands North Plaza', 'Heartland Mall', 'NEX', 'Buangkok Square', 'Greenwich V', 'Hougang 1', 'Hougang Green Shopping Mall', 'Hougang Rivercourt', 'myVillage At Serangoon Garden', 'Northshore Plaza', 'Oasis Terraces', 'Punggol Plaza', 'Rivervale Mall', 'Rivervale Plaza', 'The Seletar Mall', 'Upper Serangoon Shopping Centre', '321 Clementi', 'The Clementi Mall', 'IMM', 'JCube', 'Jem', 'Beauty World Centre', 'Beauty World Plaza', 'Bukit Panjang Plaza', 'Bukit Timah Plaza', 'Fajar Shopping Centre', 'Greenridge Shopping Centre', 'Hillion Mall', 'HillV2', 'Junction 10', 'Keat Hong Shopping Centre', 'Limbang Shopping Centre', 'Lot One', 'Rail Mall', 'Sunshine Place', 'Teck Whye Shopping Centre', 'West Mall', 'Yew Tee Point', 'Yew Tee Square', 'VivoCity', 'HarbourFront Centre', 'Alexandra Retail Centre', 'Westgate', 'Jurong Point', 'Pioneer Mall', 'The Star Vista', 'Alexandra Central', 'Anchorpoint', 'Boon Lay Shopping Centre', 'Grantral Mall', 'Fairprice Hub', 'Gek Poh Shopping Centre', 'Rochester Mall', 'Taman Jurong Shopping Centre', 'West Coast Plaza', 'Queensway Shopping Centre')
+```
+
+Next, I will create a tibble with the `mall_name` and 2 coordinate columns.
+
+```{r}
+malls_tibble <- data.frame(mall_name)
+malls_tibble$LATITUDE <- 0
+malls_tibble$LONGITUDE <- 0
+```
+
+With reference to senior's submission (Megan), I will be using the onemapsg API to retrieve all the mall locations using the function below.
+
+```{r}
+library(httr)
+geocode <- function(mallname) {
+  base_url <- "https://developers.onemap.sg/commonapi/search"
+  query <- list("searchVal" = mallname, 
+                "returnGeom" = "Y",
+                "getAddrDetails" = "N",
+                "pageNum" = "1")
+  
+  res <- GET(base_url, query = query)
+  restext<-content(res, as="text")
+  
+  output <- fromJSON(restext)  %>% 
+    as.data.frame %>%
+    select(results.LATITUDE, results.LONGITUDE)
+
+  return(output)
+}
+```
+
+Run the function above to get the coordinates of the malls.
+
+```{r}
+for (i in 1:nrow(malls_tibble)){
+  temp_output <- geocode(malls_tibble[i, 1])
+  
+  malls_tibble$LATITUDE[i] <- temp_output$results.LATITUDE
+  malls_tibble$LONGITUDE[i] <- temp_output$results.LONGITUDE
+}
+```
+
+There were a few malls that the API was unable to search coordinates for so I will do them manually. These malls include: Clarke Quay Central, City Gate Mall, Holland Village Shopping Mall, Mustafa Shopping Centre, GR.iD, Shaw House and Centre, OD Mall.
+
+```{r}
+to_add_malls <- data.frame(
+ mall_name=c('Clarke Quay Central', 'City Gate Mall', 'Holland Village Shopping Mall', 'Mustafa Shopping Centre', 'GR.iD', 'Shaw House and Centre', 'OD Mall'),
+ LATITUDE=c(1.288992, 1.3021799, 1.310988, 1.310074, 1.3002, 1.3035, 1.3380),
+ LONGITUDE=c(103.846746, 103.8625, 103.795065, 103.855366, 103.8492, 103.8256, 103.7934)
 )
 ```
 
-### Train Stations
+Combine the new data frame into the overall tibble data frame and then convert it to a sf data frame.
+
+```{r}
+malls_tibble <- rbind(malls_tibble, to_add_malls)
+malls_sf <- st_as_sf(malls_tibble, coords = c("LONGITUDE", "LATITUDE"), crs = 4326)
+glimpse(malls_sf)
+```
+
+## MRT Stations
 
 I was going to use the MRT station dataset provided by DataMall LTA but they had invalid geometries, thus I am using another dataset I found on data.world platform.
 
@@ -89,7 +287,7 @@ I will first remove all the unnecessary columns and keeping only the station nam
 mrtstation <- select(mrtstation, c('STN_NAME', 'Latitude', 'Longitude'))
 ```
 
-This csv file is missing 11 MRT stations from the new [Thomson-East Coast Line](https://www.sgtrains.com/network-tel.html "Updated TE Line Details"): TE4 Springleaf, TE5 Lentor, TE6 Mayflower, TE7 Bright Hill, TE8 Upper Thomson, TE12 Napier, TE13 Orchard Boulevard, TE15 Great World, TE16 Havelock, TE18 Maxwell, TE29 Shenton Way. I will be adding the 11 MRT stations and their [coordinates](https://en.wikipedia.org/wiki/Thomson%E2%80%93East_Coast_MRT_line "Coordinates are indicated on each MRT's wiki page.") manually.
+According to the [MRT MAP website](https://mrtmapsingapore.com/), this csv file is missing 11 MRT stations from the new [Thomson-East Coast Line](https://www.sgtrains.com/network-tel.html "Updated TE Line Details"): TE4 Springleaf, TE5 Lentor, TE6 Mayflower, TE7 Bright Hill, TE8 Upper Thomson, TE12 Napier, TE13 Orchard Boulevard, TE15 Great World, TE16 Havelock, TE18 Maxwell, TE29 Shenton Way. I will be adding the 11 MRT stations and their coordinates manually.
 
 ```{r}
 mrtstations_to_add <- data.frame(
@@ -117,6 +315,816 @@ Some MRT stations coexist in multiple lines (e.g. Bishan at the Northeast and Ci
 Lastly, transform the data frame into a spatial point data frame using the `st_as_sf()` function.
 
 ```{r}
-mrtstation_sf <- st_as_sf(mrtstation, coords = c("Longitude", "Latitude"))
-mrtstation_sf
+mrtstation_sf <- st_as_sf(mrtstation, coords = c("Longitude", "Latitude"), crs = 4326)
+glimpse(mrtstation_sf)
 ```
+
+## Bus Stops
+
+```{r}
+#| eval: false
+busstop_sf <- st_read(
+  dsn = "data/geospatial/BusStop_Feb2023", layer = "BusStop"
+)
+busstop_sf <- select(busstop_sf, c('BUS_STOP_N', 'geometry'))
+```
+
+## Transforming CRS Projection
+
+```{r}
+#| eval: false
+mpsz <- st_transform(mpsz, 3414)
+busstop_sf <- st_transform(busstop_sf, 3414)
+cbd_sf <- st_transform(cbd_sf, 3414)
+cemetry_sf <- st_transform(cemetry_sf, crs=3414)
+childcare_sf <- st_transform(childcare_sf, crs=3414)
+eldercare_sf <- st_transform(eldercare_sf, crs=3414)
+hawker_sf <- st_transform(hawker_sf, crs=3414)
+kindergartens_sf <- st_transform(kindergartens_sf, crs = 3414)
+malls_sf <- st_transform(malls_sf, crs=3414)
+mrtstation_sf <- st_transform(mrtstation_sf, crs=3414)
+parks_sf <- st_transform(parks_sf, crs=3414)
+preschl_sf <- st_transform(preschl_sf, crs=3414)
+prischl_sf <- st_transform(prischl_sf, crs = 3414)
+```
+
+Now all the sf data frames are set to the correct CRS projection.
+
+## Checking for Missing Values
+
+```{r}
+#| eval: false
+sum(is.na(busstop_sf))
+sum(is.na(cemetry_sf))
+sum(is.na(childcare_sf))
+sum(is.na(eldercare_sf))
+sum(is.na(hawker_sf))
+sum(is.na(kindergartens_sf))
+sum(is.na(malls_sf))
+sum(is.na(mrtstation_sf))
+sum(is.na(parks_sf))
+sum(is.na(preschl_sf))
+sum(is.na(prischl_sf))
+```
+
+# Importing and Wrangling Asaptial Data
+
+## HDB Resale Flat Prices
+
+```{r}
+#| eval: false
+hdb <- read_csv("data/aspatial/resale-flat-prices-2017.csv")
+glimpse(hdb)
+```
+
+First, filter out rows for 3 room flats. Next, filter out training data from 1st January 2021 to 31st December 2022, and testing data from January to February 2023.
+
+```{r}
+#| eval: false
+hdb_training <- hdb %>% 
+  filter(flat_type == "3 ROOM") %>%
+  filter(month >= "2021-01" & month <= "2022-12")
+
+hdb_testing <- hdb %>% 
+  filter(flat_type == "3 ROOM") %>%
+  filter(month >= "2023-01" & month <= "2023-02")
+```
+
+Since there are only `block` and `streetname` available, we will need to retrieve the coordinates via onemapsg API. I will be using the method provided by the [onemapsg API tutorial](https://is415-msty.netlify.app/posts/2021-10-25-take-home-exercise-3/?panelset=base&panelset6=glimpse%28%29#using-the-onemapsg-api) (by Megan)
+
+First, replace the namings to line up with the naming onemapsg uses.
+
+```{r}
+#| eval: false
+hdb_training$street_name <- gsub("ST\\.", "SAINT", hdb_training$street_name)
+hdb_testing$street_name <- gsub("ST\\.", "SAINT", hdb_testing$street_name)
+```
+
+Next, create a function that gets the geocode from the `block` and `streetname`.
+
+```{r}
+#| eval: false
+library(httr)
+geocode <- function(block, streetname) {
+  base_url <- "https://developers.onemap.sg/commonapi/search"
+  address <- paste(block, streetname, sep = " ")
+  query <- list("searchVal" = address, 
+                "returnGeom" = "Y",
+                "getAddrDetails" = "N",
+                "pageNum" = "1")
+  
+  res <- GET(base_url, query = query)
+  restext<-content(res, as="text")
+  
+  output <- fromJSON(restext)  %>% 
+    as.data.frame %>%
+    select(results.LATITUDE, results.LONGITUDE)
+
+  return(output)
+}
+```
+
+Finally, call the function on both the training and testing data.
+
+```{r}
+#| eval: false
+hdb_training$LATITUDE <- 0
+hdb_training$LONGITUDE <- 0
+
+for (i in 1:nrow(hdb_training)){
+  temp_output <- geocode(hdb_training[i, 4], hdb_training[i, 5])
+  
+  hdb_training$LATITUDE[i] <- temp_output$results.LATITUDE
+  hdb_training$LONGITUDE[i] <- temp_output$results.LONGITUDE
+}
+```
+
+```{r}
+#| eval: false
+hdb_testing$LATITUDE <- 0
+hdb_testing$LONGITUDE <- 0
+
+for (i in 1:nrow(hdb_testing)){
+  temp_output <- geocode(hdb_testing[i, 4], hdb_testing[i, 5])
+  
+  hdb_testing$LATITUDE[i] <- temp_output$results.LATITUDE
+  hdb_testing$LONGITUDE[i] <- temp_output$results.LONGITUDE
+}
+```
+
+I will transform the data sets into sf dataframes using the `st_as_sf()` function.
+
+```{r}
+#| eval: false
+hdb_testing_sf <- st_as_sf(hdb_testing, coords=c("LONGITUDE", "LATITUDE"), crs = 4326)
+hdb_training_sf <- st_as_sf(hdb_training, coords=c("LONGITUDE", "LATITUDE"), crs = 4326)
+```
+
+Finally, transform the data frames to the correct CRS projection.
+
+```{r}
+#| eval: false
+hdb_testing_sf <- st_transform(hdb_testing_sf, crs=3414)
+hdb_training_sf <- st_transform(hdb_training_sf, crs = 3414)
+```
+
+## Storey Range
+
+Since storey range is categorical, with reference to senior's submission (Megan), I will split it into binary values using the code below.
+
+```{r}
+#| eval: false
+hdb_training_sf <- hdb_training_sf %>%
+  pivot_wider(names_from = "storey_range", values_from = "storey_range", 
+              values_fn = list(storey_range = ~1), values_fill = 0) 
+hdb_testing_sf <- hdb_testing_sf %>%
+  pivot_wider(names_from = "storey_range", values_from = "storey_range", 
+              values_fn = list(storey_range = ~1), values_fill = 0) 
+```
+
+## Proximity Calculation
+
+With reference to senior's submission (Megan), calculate the proximity between the nearest facilities and the HDB flats using the function as shown below.
+
+```{r}
+#| eval: false
+proximity <- function(df1, df2, varname) {
+  dist_matrix <- st_distance(df1, df2) %>%
+    drop_units()
+  df1[,varname] <- rowMins(dist_matrix)
+  return(df1)
+}
+```
+
+Run this function for the facilities that are going to be calculated.
+
+```{r}
+#| eval: false
+hdb_training_sf <- 
+  proximity(hdb_training_sf, cbd_sf, "PROX_CBD") %>%
+  proximity(., eldercare_sf, "PROX_ELDERCARE") %>%
+  proximity(., hawker_sf, "PROX_HAWKER") %>%
+  proximity(., mrtstation_sf, "PROX_MRT") %>%
+  proximity(., parks_sf, "PROX_PARK") %>%
+  proximity(., cemetry_sf, "PROX_CEMETRY") %>%
+  proximity(., malls_sf, "PROX_MALL")
+```
+
+```{r}
+#| eval: false
+hdb_testing_sf <- 
+  proximity(hdb_testing_sf, cbd_sf, "PROX_CBD") %>%
+  proximity(., eldercare_sf, "PROX_ELDERCARE") %>%
+  proximity(., hawker_sf, "PROX_HAWKER") %>%
+  proximity(., mrtstation_sf, "PROX_MRT") %>%
+  proximity(., parks_sf, "PROX_PARK") %>%
+  proximity(., cemetry_sf, "PROX_CEMETRY") %>%
+  proximity(., malls_sf, "PROX_MALL")
+```
+
+For CBD, since it is one point only, the function needs to be modified accordingly.
+
+```{r}
+#| eval: false
+proximity <- function(df1, df2, varname) {
+  dist_matrix <- st_distance(df1, df2) %>%
+    drop_units()
+  df1[,varname] <- dist_matrix
+  return(df1)
+}
+hdb_training_sf <- proximity(hdb_training_sf, cbd_sf, "PROX_CBD")
+#hdb_testing_sf <- proximity(hdb_testing_sf, cbd_sf, "PROX_CBD")
+```
+
+## Facility Count within Radius
+
+To calculate the number of facilities within 350m radius of the HDB flats, we require a function as shown below. (Reference to senior's submission by Megan)
+
+::: callout-note
+For primary school, I will be using a radius of 1km because it is more sparse as compared to the other factors.
+:::
+
+```{r}
+#| eval: false
+num_radius <- function(df1, df2, varname, radius) {
+  dist_matrix <- st_distance(df1, df2) %>%
+    drop_units() %>%
+    as.data.frame()
+  df1[,varname] <- rowSums(dist_matrix <= radius)
+  return(df1)
+}
+```
+
+Run this function for the facilities that are going to be calculated.
+
+```{r}
+#| eval: false
+hdb_training_sf <- 
+  num_radius(hdb_training_sf, kindergartens_sf, "NUM_KDRGTN", 350) %>%
+  num_radius(., childcare_sf, "NUM_CHILDCARE", 350) %>%
+  num_radius(., busstop_sf, "NUM_BUS_STOP", 350) %>%
+  num_radius(., preschl_sf, "NUM_PRESCHL", 350) %>%
+  num_radius(., prischl_sf, "NUM_PRISCHL", 1000)
+```
+
+```{r}
+#| eval: false
+hdb_testing_sf <- 
+  num_radius(hdb_testing_sf, kindergartens_sf, "NUM_KDRGTN", 350) %>%
+  num_radius(., childcare_sf, "NUM_CHILDCARE", 350) %>%
+  num_radius(., busstop_sf, "NUM_BUS_STOP", 350) %>%
+  num_radius(., preschl_sf, "NUM_PRESCHL", 350) %>%
+  num_radius(., prischl_sf, "NUM_PRISCHL", 1000)
+```
+
+## Cleaning Up Data
+
+### Remaining Lease
+
+The remaining lease is formatted in "x years y months" which will be hard to process. With reference to senior's submission (Megan), convert the remaining lease simply to years.
+
+```{r}
+#| eval: false
+str_list <- str_split(hdb_training_sf$remaining_lease, " ")
+
+for (i in 1:length(str_list)) {
+  if (length(unlist(str_list[i])) > 2) {
+      year <- as.numeric(unlist(str_list[i])[1])
+      month <- as.numeric(unlist(str_list[i])[3])
+      hdb_training_sf$remaining_lease[i] <- year + round(month/12, 2)
+  }
+  else {
+    year <- as.numeric(unlist(str_list[i])[1])
+    hdb_training_sf$remaining_lease[i] <- year
+  }
+}
+```
+
+```{r}
+#| eval: false
+str_list <- str_split(hdb_testing_sf$remaining_lease, " ")
+
+for (i in 1:length(str_list)) {
+  if (length(unlist(str_list[i])) > 2) {
+      year <- as.numeric(unlist(str_list[i])[1])
+      month <- as.numeric(unlist(str_list[i])[3])
+      hdb_testing_sf$remaining_lease[i] <- year + round(month/12, 2)
+  }
+  else {
+    year <- as.numeric(unlist(str_list[i])[1])
+    hdb_testing_sf$remaining_lease[i] <- year
+  }
+}
+```
+
+### Renaming Columns
+
+For ease of calling in future steps, rename and standardise the column names as such.
+
+```{r}
+#| eval: false
+hdb_training_sf <- hdb_training_sf %>%
+  mutate() %>%
+  rename("AREA_SQM" = "floor_area_sqm", 
+         "LEASE_YRS" = "remaining_lease", 
+         "PRICE"= "resale_price") %>%
+  relocate(`PRICE`)
+```
+
+```{r}
+#| eval: false
+hdb_testing_sf <- hdb_testing_sf %>%
+  mutate() %>%
+  rename("AREA_SQM" = "floor_area_sqm", 
+         "LEASE_YRS" = "remaining_lease", 
+         "PRICE"= "resale_price") %>%
+  relocate(`PRICE`)
+```
+
+### Removing Unnecessary Columns
+
+Lastly, remove all the unnecessary columns to reduce the file size.
+
+```{r}
+#| eval: false
+final_hdb_training_sf <- hdb_training_sf %>%
+  select(1,7,10:38)
+final_hdb_testing_sf <- hdb_testing_sf %>%
+  select(1,7,10:36)
+```
+
+## Saving Data Frames
+
+To remove the need for running all the codes above, I will save the data frames as `.shp` files for ease for future use.
+
+```{r}
+#| eval: false
+st_write(final_hdb_training_sf, "data/geospatial/training.shp")
+st_write(final_hdb_testing_sf, "data/geospatial/testing.shp")
+```
+
+## Future Importation
+
+```{r}
+#| eval: false
+hdb_training_sf <- st_read(
+  dsn = "data/geospatial", layer = "training"
+)
+```
+
+```{r}
+#| eval: false
+hdb_training_sf <- hdb_training_sf %>%
+  mutate() %>%
+  rename("AREA_SQM" = "AREA_SQ", 
+         "LEASE_YRS" = "LEASE_Y", 
+         "PROX_CBD" = "PROX_CB", 
+         "PROX_ELDERCARE" = "PROX_EL", 
+         "PROX_HAWKER"= "PROX_HA",
+         "PROX_MRT" = "PROX_MR", 
+         "PROX_PARK" = "PROX_PA", 
+         "PROX_CEMETRY"= "PROX_CE",
+         "NUM_KDRGTN" = "NUM_KDR", 
+         "NUM_CHILDCARE" = "NUM_CHI", 
+         "NUM_BUSSTOP"= "NUM_BUS",
+         "NUM_PRESCHL" = "NUM_PRE", 
+         "NUM_PRISCHL" = "NUM_PRI")
+```
+
+```{r}
+#| eval: false
+cbd_sf <- st_transform(cbd_sf, 3414)
+proximity <- function(df1, df2, varname) {
+  dist_matrix <- st_distance(df1, df2) %>%
+    drop_units()
+  df1[,varname] <- dist_matrix
+  return(df1)
+}
+hdb_training_sf <- proximity(hdb_training_sf, cbd_sf, "PROX_CBD")
+```
+
+```{r}
+#| eval: false
+mall_sf <- st_transform(malls_sf, 3414)
+hdb_training_sf <- proximity(hdb_training_sf, malls_sf, "PROX_MALL")
+```
+
+# Exploratory Data Analysis
+
+```{r}
+hdb_training_sf <- read_rds("data/hdb_training_sf.rds")
+```
+
+## Distribution of Variables
+
+To understand the distribution of each variable, plot out multiple histograms using the `ggarange()` function.
+
+```{r}
+PRICE <- ggplot(data=hdb_training_sf, aes(x= `PRICE`)) + 
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+AREA_SQM <- ggplot(data=hdb_training_sf, aes(x= `AREA_SQM`)) + 
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_CBD <- ggplot(data=hdb_training_sf, aes(x= `PROX_CBD`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_ELDERCARE <- ggplot(data=hdb_training_sf, aes(x= `PROX_ELDERCARE`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_HAWKER <- ggplot(data=hdb_training_sf, aes(x= `PROX_HAWKER`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_MALL <- ggplot(data=hdb_training_sf, aes(x= `PROX_MALL`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_MRT <- ggplot(data=hdb_training_sf, aes(x= `PROX_MRT`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_CEMETRY <- ggplot(data=hdb_training_sf, aes(x= `PROX_CEMETRY`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+PROX_PARK <- ggplot(data=hdb_training_sf, aes(x= `PROX_PARK`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+NUM_KDRGTN <- ggplot(data=hdb_training_sf, aes(x= `NUM_KDRGTN`)) +
+  geom_histogram(bins=10, color="black", fill="light blue")
+
+NUM_CHILDCARE <- ggplot(data=hdb_training_sf, aes(x= `NUM_CHILDCARE`)) +
+  geom_histogram(bins=10, color="black", fill="light blue")
+
+NUM_BUSSTOP <- ggplot(data=hdb_training_sf, aes(x= `NUM_BUSSTOP`)) +
+  geom_histogram(bins=10, color="black", fill="light blue")
+
+NUM_PRESCHL <- ggplot(data=hdb_training_sf, aes(x= `NUM_PRESCHL`)) +
+  geom_histogram(bins=10, color="black", fill="light blue")
+
+NUM_PRISCHL <- ggplot(data=hdb_training_sf, aes(x= `NUM_PRISCHL`)) +
+  geom_histogram(bins=10, color="black", fill="light blue")
+
+ggarrange(PRICE, AREA_SQM, PROX_CBD, PROX_ELDERCARE, PROX_HAWKER, PROX_MALL,
+          PROX_MRT, PROX_PARK, PROX_CEMETRY, NUM_KDRGTN,
+          NUM_CHILDCARE, NUM_BUSSTOP, NUM_PRESCHL, NUM_PRISCHL,  
+          ncol = 3, nrow = 4)
+```
+
+As seen from the distribution above, most variables result in a normal distribution. Both `PRICE` and `AREA_SQM` are rather skewed so the value can be normalised using the log transformation.
+
+```{r}
+hdb_training_sf <- hdb_training_sf %>%
+  mutate(`LOG_PRICE` = log(PRICE))
+hdb_training_sf <- hdb_training_sf %>%
+  mutate(`LOG_AREA_SQM` = log(AREA_SQM))
+```
+
+```{r}
+LOG_PRICE <- ggplot(data=hdb_training_sf, aes(x= `LOG_PRICE`)) + 
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+LOG_AREA_SQM <- ggplot(data=hdb_training_sf, aes(x= `LOG_AREA_SQM`)) + 
+  geom_histogram(bins=20, color="black", fill="light blue")
+
+ggarrange(LOG_PRICE, LOG_AREA_SQM,
+          ncol = 2, nrow = 1)
+```
+
+Now the distribution is less skewed and better for processing the model.
+
+## Statistical Point Map
+
+```{r}
+tmap_mode("view")
+tm_shape(mpsz)+
+  tm_polygons() +
+tm_shape(hdb_training_sf) +  
+  tm_dots(col = "PRICE",
+          alpha = 0.6,
+          style="quantile") +
+  tm_view(set.zoom.limits = c(11,14)) +
+tmap_options(check.and.fix = TRUE)
+```
+
+From this map, HDB 3-room flats with higher resale rates are concentrated mainly at the Sengkang - Punggol area and central area.
+
+## Variable Correlation
+
+Before creating our models, it is important to understand if there are any strong correlations between variables as it can affect the accuracy of the model.
+
+```{r}
+hdb_training_sf$LEASE_YRS <- as.numeric(hdb_training_sf$LEASE_YRS)
+hdb_training_sf_noGeom <- hdb_training_sf %>%
+  st_drop_geometry()
+corrplot(cor(hdb_training_sf_noGeom[, 3:33]), diag = FALSE, order = "AOE",
+         tl.pos = "td", tl.cex = 0.5, number.cex = 0.4, method = "number", type = "upper")
+```
+
+From the correlation model, we can see that there are 2 highly correlated variables: `NUM_PRESCHL` and `NUM_CHILDCARE`. There is also a slightly high correlated variable pair: `NUM_PRESCHL` and `NUM_KDRGTN`. Since both cases has `NUM_PRESCHL` as a common denominator, I will remove this variable from here onwards.
+
+# Hedonic Pricing Modelling
+
+## Final Training and Testing Data Set
+
+```{r}
+final_training_sf <- hdb_training_sf %>%
+  select(3,20:28,30:34)
+```
+
+```{r}
+#| eval: false
+hdb_testing_sf <- st_read(
+  dsn = "data/geospatial", layer = "testing"
+)
+```
+
+```{r}
+#| eval: false
+hdb_testing_sf <- proximity(hdb_testing_sf, cbd_sf, "PROX_CBD")
+hdb_testing_sf <- proximity(hdb_testing_sf, malls_sf, "PROX_MALL")
+hdb_testing_sf <- hdb_testing_sf %>%
+  mutate() %>%
+  rename("AREA_SQM" = "AREA_SQ", 
+         "LEASE_YRS" = "LEASE_Y", 
+         "PROX_ELDERCARE" = "PROX_EL", 
+         "PROX_HAWKER"= "PROX_HA",
+         "PROX_MRT" = "PROX_MR", 
+         "PROX_PARK" = "PROX_PA", 
+         "PROX_CEMETRY"= "PROX_CE",
+         "NUM_KDRGTN" = "NUM_KDR", 
+         "NUM_CHILDCARE" = "NUM_CHI", 
+         "NUM_BUSSTOP"= "NUM_BUS",
+         "NUM_PRESCHL" = "NUM_PRE", 
+         "NUM_PRISCHL" = "NUM_PRI")
+hdb_testing_sf <- hdb_testing_sf %>%
+  mutate(`LOG_PRICE` = log(PRICE))
+hdb_testing_sf <- hdb_testing_sf %>%
+  mutate(`LOG_AREA_SQM` = log(AREA_SQM))
+hdb_testing_sf$LEASE_YRS <- as.numeric(hdb_testing_sf$LEASE_YRS)
+hdb_testing_sf_noGeom <- hdb_testing_sf %>%
+  st_drop_geometry()
+final_testing_sf <- hdb_testing_sf %>%
+  select(3,19:33)
+write_rds(final_testing_sf, "data/final_testing_sf.rds")
+final_testing_sp <- as_Spatial(final_testing_sf)
+final_testing_sf <- read_rds("data/final_testing_sf.rds")
+final_training_sf <- read_rds("data/final_training_sf.rds")
+final_testing_sf <- final_testing_sf %>%
+  select(1:9,11:15)
+```
+
+## Model 1: olsrr Method
+
+### Creating the MLR Model
+
+```{r}
+olsrr_mlr <- lm(formula = LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS +
+                   PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 data=final_training_sf)
+ols_regress(olsrr_mlr)
+```
+
+### gtsummary Table
+
+```{r}
+tbl_regression(olsrr_mlr, 
+               intercept = TRUE) %>% 
+  add_glance_source_note(
+    label = list(sigma ~ "\U03C3"),
+    include = c(r.squared, adj.r.squared, 
+                AIC, statistic,
+                p.value, sigma))
+```
+
+### Checking Assumptions
+
+It is important to check if the model violates any assumptions.
+
+#### Multicolinearity
+
+```{r}
+ols_vif_tol(olsrr_mlr)
+```
+
+Variables X04TO06, X01TO03, X07TO09, X10TO12, X13TO15 and X16TO18 have high multicolinearity as they have VIF values significantly larger than 10.
+
+#### Non-Linearity
+
+```{r}
+ols_plot_resid_fit(olsrr_mlr)
+```
+
+Most scattered data points are around the 0 line. Relationship between the dependent variable and independent variables are linear.
+
+#### Normality
+
+```{r}
+ols_plot_resid_hist(olsrr_mlr)
+```
+
+The figure above shows that there is normal distribution in the MLR model.
+
+#### Spatial Autocorrelation
+
+```{r}
+mlr.output <- as.data.frame(olsrr_mlr$residuals)
+```
+
+```{r}
+final.training.res.sf <- cbind(final_training_sf, 
+                        olsrr_mlr$residuals) %>%
+rename(`MLR_RES` = `olsrr_mlr.residuals`)
+```
+
+```{r}
+final_training_sp <- as_Spatial(final.training.res.sf)
+final_training_sp
+```
+
+```{r}
+tm_shape(mpsz)+
+  tmap_options(check.and.fix = TRUE) +
+  tm_polygons(alpha = 0.4) +
+tm_shape(final.training.res.sf) +  
+  tm_dots(col = "MLR_RES",
+          alpha = 0.6,
+          style="quantile") +
+  tm_view(set.zoom.limits = c(11,14))
+```
+
+There is sign of spatial autocorrelation. To further confirm this observation, perform the Moran's I test.
+
+```{r}
+nb <- dnearneigh(coordinates(final_training_sp), 0, 1500, longlat = FALSE)
+nb_lw <- nb2listw(nb, style = 'W', zero.policy = TRUE)
+lm.morantest(olsrr_mlr, nb_lw)
+```
+
+As such, I checked for NA values in the nb list. However there were none.
+
+```{r}
+sum(is.na(nb))
+```
+
+## Model 2: GWR with Fixed Bandwidth
+
+### Computing Fixed Bandwidth
+
+```{r}
+#| eval: false
+bw.fixed <- bw.gwr(formula = LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 data=final_training_sp, 
+                   approach="CV", 
+                   kernel="gaussian", 
+                   adaptive=FALSE, 
+                   longlat=FALSE)
+```
+
+```{r}
+#write_rds(bw.fixed, "data/model/bw_fixed.rds")
+bw.fixed <- read_rds("data/model/bw_fixed.rds")
+bw.fixed
+```
+
+```{r}
+#| eval: false
+gwr.fixed <- gwr.basic(formula = LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 data=final_training_sp,
+                       bw=bw.fixed, 
+                       kernel = 'gaussian', 
+                       longlat = FALSE)
+```
+
+```{r}
+#write_rds(gwr.fixed, "data/model/gwr_fixed.rds")
+gwr.fixed <- read_rds("data/model/gwr_fixed.rds")
+gwr.fixed
+```
+
+### Prediction
+
+```{r}
+#| eval: false
+gwrFixed_pred <- gwr.predict(LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 data=final_training_sp,
+                 predictdata = final_testing_sp,
+                       bw=bw.fixed, 
+                       kernel = 'gaussian', 
+                       longlat = FALSE)
+```
+
+## Model 3: GWR with Adaptive Bandwidth
+
+```{r}
+#| eval: false
+bw.adaptive <- bw.gwr(formula = LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 data=final_training_sp,
+                      approach="CV", 
+                      kernel="gaussian", 
+                      adaptive=TRUE, 
+                      longlat=FALSE)
+```
+
+```{r}
+#write_rds(bw.adaptive, "data/model/bw_adaptive.rds")
+bw.adaptive <- read_rds("data/model/bw_adaptive.rds")
+bw.adaptive
+```
+
+```{r}
+#| eval: false
+gwr.adaptive <- gwr.basic(formula = LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 data=final_training_sp,
+                 bw=bw.adaptive, 
+                          kernel = 'gaussian', 
+                          adaptive=TRUE, 
+                          longlat = FALSE)
+```
+
+```{r}
+#write_rds(gwr.adaptive, "data/model/gwr_adaptive.rds")
+gwr.adaptive <- read_rds("data/model/gwr_adaptive.rds")
+gwr.adaptive
+```
+
+```{r}
+#| eval: false
+gwrAdaptive_pred <- gwr.predict(LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                 final_training_sp,
+                 final_testing_sp,
+                 bw.adaptive, 
+                       kernel = 'gaussian', 
+                       longlat = FALSE)
+```
+
+Similarly, it returned the same error that was said could be due to high multicolinearity between variables.
+
+## Model 4: Random Forest
+
+### Preparing Coordinate Data
+
+```{r}
+final_testing_sf <- read_rds("data/final_testing_sf.rds")
+final_testing_sp <- as_Spatial(final_testing_sf)
+final_testing_sf <- final_testing_sf %>%
+  select(1:9,11:15)
+
+coords_train <- st_coordinates(final_training_sf)
+coords_test <- st_coordinates(final_testing_sf)
+```
+
+```{r}
+train_data <- final_training_sf %>%
+  st_drop_geometry()
+```
+
+```{r}
+write_rds(coords_train, "data/coords_train.rds")
+write_rds(coords_test, "data/coords_test.rds")
+write_rds(final_training_sf, "data/final_training_sf.rds")
+write_rds(train_data, "data/train_data.rds")
+
+train_data <- read_rds("data/train_data.rds")
+coords_train <- read_rds("data/coords_train.rds")
+```
+
+```{r}
+set.seed(1234)
+rf <- ranger(LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+             data=train_data, num.trees = 500)
+```
+
+```{r}
+print(rf)
+```
+
+### Calibrating Geographical RF Model
+
+```{r}
+#| eval: false
+set.seed(1234)
+gwRF_adaptive <- grf(formula = LOG_PRICE ~ LOG_AREA_SQM + LEASE_YRS + 
+                  PROX_CBD + PROX_ELDERCARE  + PROX_HAWKER + PROX_MALL + PROX_MRT + PROX_PARK + PROX_CEMETRY + NUM_KDRGTN + NUM_CHILDCARE + NUM_BUSSTOP + NUM_PRISCHL,
+                     dframe=train_data, 
+                     bw=55,
+                     kernel="adaptive",
+                     coords=coords_train, ntree = 10)
+```
+
+# Evaluation and Conclusion
+
+| Model                          | Adjusted R-square |
+|--------------------------------|-------------------|
+| 1\. olsrr MLR                  | 0.617             |
+| 2\. GWR with Fixed Bandwidth   | 0.731288          |
+| 3\. GWR with Adaptive Bandwith | 0.7211312         |
+| 4\. Random Forest (Ranger)     | 0.8767462         |
+
+According to the adjusted R-square values, the best model would be Random forest using the ranger package.
+
+Unfortunately, due to the lack of understanding and computational limitations, there was no prediction model that I could generate predictions out of. Will try to understand it better after this take home exercise!
