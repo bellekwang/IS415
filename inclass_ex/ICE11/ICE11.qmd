@@ -1,0 +1,43 @@
+---
+title: "In Class Exercise 11"
+subtitle: "Spatial Interaction Model"
+date: "27 Mar 2023"
+date-modified: "`r Sys.Date()`"
+number-sections: true
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Setting Up
+
+## Installing and Loading Packages
+
+```{r}
+pacman::p_load(sf, tmap, tidyverse)
+```
+
+## Importing Data
+
+### Geospatial Data
+
+```{r}
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019")
+```
+
+```{r}
+busstop <- st_read(dsn = "data/geospatial", layer = "BusStop")
+```
+
+### Aspatial Data
+
+```{r}
+pop <- read_csv("data/aspatial/pop.csv")
+bus_destination <- read_csv("data/aspatial/origin_destination_bus_202210.csv")
+pop_data <- read_csv("data/aspatial/respopagesex2022.csv")
+```
+
+# Spatial Interaction Model

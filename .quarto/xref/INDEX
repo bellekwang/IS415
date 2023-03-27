@@ -88,5 +88,11 @@
   },
   "handson_ex/HE10/data/geospatial/hexagons.qmd": {
     "hexagons.html": "6acb7c5e"
+  },
+  "inclass_ex/ICE11/ICE11.qmd": {
+    "ICE11.html": "6cf9fefc"
+  },
+  "inclass_ex/ICE11/data/geospatial/MPSZ-2019.qmd": {
+    "MPSZ-2019.html": "bb5a6415"
   }
 }
