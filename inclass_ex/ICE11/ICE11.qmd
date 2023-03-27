@@ -17,7 +17,7 @@ editor: visual
 ## Installing and Loading Packages
 
 ```{r}
-pacman::p_load(sf, tmap, tidyverse)
+pacman::p_load(sf, sp, tmap, tidyverse, caret, stplanr, reshape2, broom)
 ```
 
 ## Importing Data
@@ -25,19 +25,139 @@ pacman::p_load(sf, tmap, tidyverse)
 ### Geospatial Data
 
 ```{r}
-mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019")
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>%
+  st_transform(crs=3414)
 ```
 
 ```{r}
-busstop <- st_read(dsn = "data/geospatial", layer = "BusStop")
+busstop <- st_read(dsn = "data/geospatial", layer = "BusStop") %>%
+  st_transform(crs=3414)
+```
+
+Combine both shapefiles and drop the geometry.
+
+```{r}
+busstop_mpsz <- st_intersection(busstop, mpsz) %>% 
+  select(BUS_STOP_N, SUBZONE_C) %>%
+  st_drop_geometry()
 ```
 
 ### Aspatial Data
 
 ```{r}
 pop <- read_csv("data/aspatial/pop.csv")
-bus_destination <- read_csv("data/aspatial/origin_destination_bus_202210.csv")
 pop_data <- read_csv("data/aspatial/respopagesex2022.csv")
+odbus<-read_csv("data/aspatial/origin_destination_bus_202210.csv")
+odbus$ORIGIN_PT_CODE <- as.factor(odbus$ORIGIN_PT_CODE)
+odbus$DESTINATION_PT_CODE <- as.factor(odbus$DESTINATION_PT_CODE)
 ```
 
-# Spatial Interaction Model
+First, extract all weekday 7 to 9 hours for `odbus.`
+
+```{r}
+odbus7_9 <-odbus %>%
+  filter(DAY_TYPE=="WEEKDAY") %>%
+  filter(TIME_PER_HOUR>=7 & TIME_PER_HOUR <=9) %>%
+  group_by(ORIGIN_PT_CODE,DESTINATION_PT_CODE)%>%
+  summarise(TRIPS=sum(TOTAL_TRIPS))
+```
+
+```{r}
+write_rds(odbus7_9,"data/rds/odbus7_9.rds")
+odbus7_9<- read_rds("data/rds/odbus7_9.rds")
+```
+
+## Data Wrangling
+
+Combine geospatial with aspatial data.
+
+```{r}
+od_data <-left_join(odbus7_9, busstop_mpsz,
+                    by = c("ORIGIN_PT_CODE"="BUS_STOP_N"))%>%
+  rename(ORIGIN_BS = ORIGIN_PT_CODE,
+         ORIGIN_SZ= SUBZONE_C,
+         DESTIN_BS = DESTINATION_PT_CODE)
+```
+
+Remove any duplicates.
+
+```{r}
+duplicate <- od_data %>%
+  group_by_all() %>%
+  filter(n()>1) %>%
+  ungroup()
+
+od_data <- unique(od_data)
+
+od_data <-left_join(od_data, busstop_mpsz,
+                    by = c("DESTIN_BS"="BUS_STOP_N"))%>%
+                      drop_na()
+```
+
+```{r}
+#write_rds(od_data,"data/rds/od_data.rds")
+od_data <- read_rds("data/rds/od_data.rds")
+```
+
+Sort `mpsz` by subzone.
+
+```{r}
+mpsz <-mpsz[order(mpsz$SUBZONE_C),]
+head(mpsz,10)
+```
+
+```{r}
+mpsz_sp <-as(mpsz,"Spatial")
+```
+
+Compute distance matrix after converting sf into sp.
+
+```{r}
+dist <- spDists(mpsz_sp)
+dist
+```
+
+Get all the subzone names.
+
+```{r}
+sz_names <- mpsz$SUBZONE_C
+```
+
+Update the column and row names for the dist matrix.
+
+```{r}
+colnames(dist) <- paste0(sz_names)
+rownames(dist) <- paste0(sz_names)
+```
+
+Next, pivot the distance value by sub-zone.
+
+```{r}
+distPair <- melt(dist) %>% #melt works like pivot longer
+  rename(dist= value)
+head(distPair,10)
+```
+
+If the pair distance is 0, update it to 50.
+
+```{r}
+distPair$dist <- ifelse(distPair$dist == 0, 
+                        50,
+                        distPair$dist)
+```
+
+Rename the variables.
+
+```{r}
+distPair <- distPair %>%
+  rename(orig = Var1,
+         dest = Var2)
+```
+
+Get the flow data.
+
+```{r}
+flow_data <- od_data %>%
+  group_by(ORIGIN_SZ,DESTIN_BS) %>%
+  summarise(TRIPS = sum(TRIPS))
+```
