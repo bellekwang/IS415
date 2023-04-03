@@ -43,6 +43,8 @@ website:
             text: Exercise 10
           - href: inclass_ex/ICE11/ICE11.qmd
             text: Exercise 11
+          - href: inclass_ex/ICE12/ICE12.qmd
+            text: Exercise 12
       - text: Take-Home Exercises
         menu: 
           - href: take_home_ex/THE1/THE1.qmd
